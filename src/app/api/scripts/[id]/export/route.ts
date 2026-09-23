@@ -29,13 +29,28 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
   return lines;
 }
 
+function drawCentered(
+  pdfPage: PDFPage,
+  text: string,
+  y: number,
+  font: PDFFont,
+  size: number,
+  color?: ReturnType<typeof rgb>
+) {
+  const width = font.widthOfTextAtSize(text, size);
+  pdfPage.drawText(text, { x: (PAGE_WIDTH - width) / 2, y, size, font, color });
+}
+
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
   const script = await prisma.script.findUnique({
     where: { id: params.id },
-    include: { pages: { orderBy: { number: 'asc' }, include: { blocks: { orderBy: { order: 'asc' } } } } }
+    include: {
+      owner: { select: { name: true, email: true } },
+      pages: { orderBy: { number: 'asc' }, include: { blocks: { orderBy: { order: 'asc' } } } }
+    }
   });
 
   if (!script || script.ownerId !== (session.user as any).id) {
@@ -50,35 +65,59 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const fontBold = await pdf.embedFont(StandardFonts.CourierBold);
   const fontOblique = await pdf.embedFont(StandardFonts.CourierOblique);
 
+  const cover = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const titleLines = wrapText(script.title.toUpperCase(), fontBold, 28, CONTENT_WIDTH);
+  let titleY = PAGE_HEIGHT / 2 + 20 + (titleLines.length - 1) * 17;
+  for (const line of titleLines) {
+    drawCentered(cover, line, titleY, fontBold, 28);
+    titleY -= 34;
+  }
+
+  const authorName = script.owner.name || script.owner.email || '';
+  if (authorName) {
+    drawCentered(cover, 'roteiro de ' + authorName, titleY - 10, fontOblique, 13, rgb(0.3, 0.3, 0.28));
+  }
+
+  const formatLabel = mode === 'plot' ? 'FORMATO: PLOT' : 'FORMATO: FULL SCRIPT';
+  drawCentered(cover, formatLabel, MARGIN + 34, font, 9, rgb(0.5, 0.5, 0.45));
+  drawCentered(
+    cover,
+    `${script.pages.length} páginas · exportado em ${new Date().toLocaleDateString('pt-BR')}`,
+    MARGIN + 18,
+    font,
+    9,
+    rgb(0.5, 0.5, 0.45)
+  );
+
   for (const page of script.pages) {
     let pdfPage: PDFPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     let y = PAGE_HEIGHT - MARGIN;
 
     const drawHeader = () => {
-      pdfPage.drawText(script.title.toUpperCase(), {
-        x: MARGIN,
-        y: PAGE_HEIGHT - 50,
-        size: 9,
-        font,
-        color: rgb(0.45, 0.45, 0.4)
-      });
       const label = 'PÁGINA ' + page.number;
       pdfPage.drawText(label, {
-        x: PAGE_WIDTH - MARGIN - fontBold.widthOfTextAtSize(label, 14),
+        x: MARGIN,
         y: PAGE_HEIGHT - 50,
         size: 14,
         font: fontBold
       });
+      pdfPage.drawText(script.title.toUpperCase(), {
+        x: MARGIN,
+        y: PAGE_HEIGHT - 50 - 18,
+        size: 9,
+        font,
+        color: rgb(0.45, 0.45, 0.4)
+      });
     };
     drawHeader();
-    y -= 36;
+    y -= 46;
 
     const ensureSpace = (needed: number) => {
       if (y - needed < MARGIN) {
         pdfPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         y = PAGE_HEIGHT - MARGIN;
         drawHeader();
-        y -= 36;
+        y -= 46;
         pdfPage.drawText('(continuação)', { x: MARGIN, y, size: 9, font: fontOblique, color: rgb(0.5, 0.5, 0.5) });
         y -= 22;
       }
@@ -128,6 +167,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         }
         y -= LINE_HEIGHT * 0.4;
       } else if (block.type === 'ONOMATOPEIA') {
+        if (!block.text?.trim()) continue;
         ensureSpace(LINE_HEIGHT);
         pdfPage.drawText('SFX: ' + (block.text || '').toUpperCase(), {
           x: MARGIN,

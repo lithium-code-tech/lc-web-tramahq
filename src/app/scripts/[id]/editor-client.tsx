@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import LogoutButton from '@/components/logout-button';
 
 type BlockType = 'QUADRO' | 'DIALOGO' | 'ONOMATOPEIA';
 
@@ -171,7 +173,10 @@ export default function EditorClient({ initialScript }: { initialScript: ScriptD
       {/* Sidebar de páginas */}
       <div className="flex w-[232px] flex-shrink-0 flex-col gap-7 bg-sidebar p-5 text-[#F2EDE1]">
         <div>
-          <div className="font-display text-xl font-bold">Prancheta</div>
+          <Link href="/scripts" className="mb-2 block text-[11.5px] font-semibold text-[#B7AF9A] hover:text-[#F2EDE1]">
+            ← Meus roteiros
+          </Link>
+          <div className="font-display text-xl font-bold">TramaHQ</div>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -206,8 +211,11 @@ export default function EditorClient({ initialScript }: { initialScript: ScriptD
           </button>
         </div>
 
-        <div className="mt-auto border-t border-[#3A362E] pt-4 text-[11.5px] text-[#6F6A5B]">
-          {pages.length} páginas · {totalQuadros} quadros {saving && '· salvando…'}
+        <div className="mt-auto flex flex-col gap-2 border-t border-[#3A362E] pt-4 text-[11.5px] text-[#6F6A5B]">
+          <div>
+            {pages.length} páginas · {totalQuadros} quadros {saving && '· salvando…'}
+          </div>
+          <LogoutButton />
         </div>
       </div>
 

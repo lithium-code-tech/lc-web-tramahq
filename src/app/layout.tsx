@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Prancheta — editor de roteiro de quadrinhos',
+  title: 'TramaHQ — editor de roteiro de quadrinhos',
   description: 'Escreva roteiros de HQ quadro a quadro, com modo Full Script e Plot.'
 };
 

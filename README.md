@@ -1,4 +1,4 @@
-# Prancheta
+# TramaHQ
 
 Editor de roteiro de quadrinhos — página → quadro → diálogo (personagem + fala) →
 onomatopeia, com modo **Full Script** (quadro a quadro) e **Plot** (página a página,

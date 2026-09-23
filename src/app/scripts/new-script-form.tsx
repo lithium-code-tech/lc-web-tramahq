@@ -8,18 +8,37 @@ export default function NewScriptForm() {
   const [title, setTitle] = useState('');
   const [pageCount, setPageCount] = useState('6');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch('/api/scripts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, pageCount: Number(pageCount) })
-    });
-    const script = await res.json();
-    setLoading(false);
-    if (script?.id) router.push(`/scripts/${script.id}`);
+    setError('');
+    try {
+      const res = await fetch('/api/scripts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, pageCount: Number(pageCount) })
+      });
+
+      if (res.status === 401) {
+        router.push('/login');
+        return;
+      }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error || 'Não foi possível criar o roteiro. Tente novamente.');
+        return;
+      }
+
+      const script = await res.json();
+      if (script?.id) router.push(`/scripts/${script.id}`);
+    } catch {
+      setError('Não foi possível criar o roteiro. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -45,6 +64,7 @@ export default function NewScriptForm() {
           className="w-28 border-[1.5px] border-ink bg-[#FBF8F1] px-3 py-2 font-script text-sm outline-none focus:outline-accent-blue"
         />
       </div>
+      {error && <div className="text-sm text-accent-red">{error}</div>}
       <button disabled={loading} type="submit" className="bg-ink py-3 text-sm font-bold text-[#F2EDE1] disabled:opacity-50">
         {loading ? 'Criando…' : 'COMEÇAR ROTEIRO'}
       </button>

@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: prancheta
+      POSTGRES_PASSWORD: prancheta
+      POSTGRES_DB: prancheta
+    ports:
+      - "5432:5432"
+    volumes:
+      - prancheta_pgdata:/var/lib/postgresql/data
+
+volumes:
+  prancheta_pgdata:

@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  scripts   Script[]
+  createdAt DateTime @default(now())
+}
+
+model Script {
+  id         String      @id @default(cuid())
+  title      String
+  ownerId    String
+  owner      User        @relation(fields: [ownerId], references: [id])
+  pages      Page[]
+  characters Character[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model Page {
+  id       String  @id @default(cuid())
+  scriptId String
+  script   Script  @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  number   Int
+  plotText String? @db.Text
+  blocks   Block[]
+
+  @@unique([scriptId, number])
+}
+
+enum BlockType {
+  QUADRO
+  DIALOGO
+  ONOMATOPEIA
+}
+
+model Block {
+  id        String    @id @default(cuid())
+  pageId    String
+  page      Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  order     Int
+  type      BlockType
+  number    Int?
+  character String?
+  text      String    @db.Text
+}
+
+model Character {
+  id       String @id @default(cuid())
+  scriptId String
+  script   Script @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  name     String
+}

@@ -609,7 +609,7 @@ export default function EditorClient({
                   ref={(el) => {
                     fieldRefs.current['plot-' + p.id] = el;
                   }}
-                  rows={2}
+                  rows={5}
                   value={p.plotText}
                   placeholder="O que acontece nesta página…"
                   onChange={(e) => updatePlotText(i, e.target.value)}
@@ -619,7 +619,7 @@ export default function EditorClient({
                       advancePlot(i);
                     }
                   }}
-                  className="flex-1 resize-y bg-transparent text-center font-script text-sm italic leading-relaxed text-ink outline-none"
+                  className="flex-1 resize-y bg-transparent text-left font-script text-sm italic leading-relaxed text-ink outline-none"
                 />
               </div>
             ))}

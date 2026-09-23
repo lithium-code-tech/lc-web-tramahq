@@ -68,6 +68,44 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     rgb(0.5, 0.5, 0.45)
   );
 
+  if (mode === 'plot') {
+    let pdfPage: PDFPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    let y = PAGE_HEIGHT - MARGIN;
+
+    const ensureSpace = (needed: number) => {
+      if (y - needed < MARGIN) {
+        pdfPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        y = PAGE_HEIGHT - MARGIN;
+      }
+    };
+
+    for (const page of script.pages) {
+      ensureSpace(LINE_HEIGHT * 2);
+      pdfPage.drawText('PÁGINA ' + page.number, {
+        x: MARGIN,
+        y,
+        size: BODY_SIZE,
+        font: fontBold,
+        color: rgb(0.17, 0.3, 0.49)
+      });
+      y -= LINE_HEIGHT;
+      for (const line of wrapText(page.plotText || '(sem resumo)', fontOblique, BODY_SIZE, CONTENT_WIDTH)) {
+        ensureSpace(LINE_HEIGHT);
+        pdfPage.drawText(line, { x: MARGIN, y, size: BODY_SIZE, font: fontOblique });
+        y -= LINE_HEIGHT;
+      }
+      y -= LINE_HEIGHT * 1.2;
+    }
+
+    const bytes = await pdf.save();
+    return new NextResponse(Buffer.from(bytes), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}-plot.pdf"`
+      }
+    });
+  }
+
   if (mode === 'outline') {
     for (const edition of script.editions) {
       let pdfPage: PDFPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -154,16 +192,6 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       }
     };
 
-    if (mode === 'plot') {
-      const lines = wrapText(page.plotText || '(sem resumo)', fontOblique, BODY_SIZE, CONTENT_WIDTH);
-      for (const line of lines) {
-        ensureSpace(LINE_HEIGHT);
-        pdfPage.drawText(line, { x: MARGIN, y, size: BODY_SIZE, font: fontOblique });
-        y -= LINE_HEIGHT;
-      }
-      continue;
-    }
-
     for (const block of page.blocks) {
       if (block.type === 'QUADRO') {
         ensureSpace(LINE_HEIGHT * 2);
@@ -213,11 +241,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 
   const bytes = await pdf.save();
-  const suffix = mode === 'plot' ? '-plot' : '';
   return new NextResponse(Buffer.from(bytes), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}${suffix}.pdf"`
+      'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}.pdf"`
     }
   });
 }

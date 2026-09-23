@@ -35,14 +35,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!owner) return NextResponse.json({ error: 'Não encontrado.' }, { status: 404 });
 
   const body = await req.json();
-  const { title, pages, characters } = body as {
+  const { title, pages, characters, editions } = body as {
     title?: string;
     pages: {
       number: number;
       plotText: string;
       blocks: { type: 'QUADRO' | 'DIALOGO' | 'ONOMATOPEIA'; number?: number; character?: string; text: string }[];
     }[];
-    characters: { name: string }[];
+    characters: { name: string; description?: string }[];
+    editions?: { number: number; text: string }[];
   };
 
   await prisma.$transaction(async (tx) => {
@@ -53,6 +54,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // MVP: substitui o conteúdo inteiro a cada save (documento pequeno, simplicidade > eficiência)
     await tx.page.deleteMany({ where: { scriptId: params.id } });
     await tx.character.deleteMany({ where: { scriptId: params.id } });
+    if (editions) await tx.edition.deleteMany({ where: { scriptId: params.id } });
 
     for (const page of pages) {
       await tx.page.create({
@@ -74,7 +76,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     for (const ch of characters) {
-      await tx.character.create({ data: { scriptId: params.id, name: ch.name } });
+      await tx.character.create({ data: { scriptId: params.id, name: ch.name, description: ch.description || '' } });
+    }
+
+    if (editions) {
+      for (const ed of editions) {
+        await tx.edition.create({ data: { scriptId: params.id, number: ed.number, text: ed.text } });
+      }
     }
   });
 

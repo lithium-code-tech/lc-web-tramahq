@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
+import { PDFFont, PDFPage, PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { wrapText, drawCentered as drawCenteredBase } from '@/lib/pdf-text';
 
 const PAGE_WIDTH = 612; // Letter
 const PAGE_HEIGHT = 792;
@@ -11,34 +12,8 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const BODY_SIZE = 11;
 const LINE_HEIGHT = BODY_SIZE * 1.5;
 
-function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const words = (text || '').split(/\s+/).filter(Boolean);
-  if (!words.length) return [''];
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const test = current ? current + ' ' + word : word;
-    if (font.widthOfTextAtSize(test, size) > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
-function drawCentered(
-  pdfPage: PDFPage,
-  text: string,
-  y: number,
-  font: PDFFont,
-  size: number,
-  color?: ReturnType<typeof rgb>
-) {
-  const width = font.widthOfTextAtSize(text, size);
-  pdfPage.drawText(text, { x: (PAGE_WIDTH - width) / 2, y, size, font, color });
+function drawCentered(pdfPage: PDFPage, text: string, y: number, font: PDFFont, size: number, color?: ReturnType<typeof rgb>) {
+  drawCenteredBase(pdfPage, text, y, font, size, PAGE_WIDTH, color);
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -49,7 +24,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     where: { id: params.id },
     include: {
       owner: { select: { name: true, email: true } },
-      pages: { orderBy: { number: 'asc' }, include: { blocks: { orderBy: { order: 'asc' } } } }
+      pages: { orderBy: { number: 'asc' }, include: { blocks: { orderBy: { order: 'asc' } } } },
+      editions: { orderBy: { number: 'asc' } }
     }
   });
 
@@ -78,16 +54,69 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     drawCentered(cover, 'roteiro de ' + authorName, titleY - 10, fontOblique, 13, rgb(0.3, 0.3, 0.28));
   }
 
-  const formatLabel = mode === 'plot' ? 'FORMATO: PLOT' : 'FORMATO: FULL SCRIPT';
+  const formatLabel = mode === 'plot' ? 'FORMATO: TRAMA' : 'FORMATO: ROTEIRO';
   drawCentered(cover, formatLabel, MARGIN + 34, font, 9, rgb(0.5, 0.5, 0.45));
+  const countLabel = mode === 'plot' ? `${script.editions.length} edições` : `${script.pages.length} páginas`;
   drawCentered(
     cover,
-    `${script.pages.length} páginas · exportado em ${new Date().toLocaleDateString('pt-BR')}`,
+    `${countLabel} · exportado em ${new Date().toLocaleDateString('pt-BR')}`,
     MARGIN + 18,
     font,
     9,
     rgb(0.5, 0.5, 0.45)
   );
+
+  if (mode === 'plot') {
+    for (const edition of script.editions) {
+      let pdfPage: PDFPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      let y = PAGE_HEIGHT - MARGIN;
+
+      const drawHeader = () => {
+        const label = 'EDIÇÃO ' + edition.number;
+        pdfPage.drawText(label, { x: MARGIN, y: PAGE_HEIGHT - 50, size: 14, font: fontBold });
+        pdfPage.drawText(script.title.toUpperCase(), {
+          x: MARGIN,
+          y: PAGE_HEIGHT - 50 - 18,
+          size: 9,
+          font,
+          color: rgb(0.45, 0.45, 0.4)
+        });
+      };
+      drawHeader();
+      y -= 46;
+
+      const ensureSpace = (needed: number) => {
+        if (y - needed < MARGIN) {
+          pdfPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+          y = PAGE_HEIGHT - MARGIN;
+          drawHeader();
+          y -= 46;
+          pdfPage.drawText('(continuação)', { x: MARGIN, y, size: 9, font: fontOblique, color: rgb(0.5, 0.5, 0.5) });
+          y -= 22;
+        }
+      };
+
+      const paragraphs = (edition.text || '(sem resumo)').split(/\n{2,}/);
+      for (const paragraph of paragraphs) {
+        for (const rawLine of paragraph.split('\n')) {
+          for (const line of wrapText(rawLine, fontOblique, BODY_SIZE, CONTENT_WIDTH)) {
+            ensureSpace(LINE_HEIGHT);
+            pdfPage.drawText(line, { x: MARGIN, y, size: BODY_SIZE, font: fontOblique });
+            y -= LINE_HEIGHT;
+          }
+        }
+        y -= LINE_HEIGHT * 0.6;
+      }
+    }
+
+    const bytes = await pdf.save();
+    return new NextResponse(Buffer.from(bytes), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}-trama.pdf"`
+      }
+    });
+  }
 
   for (const page of script.pages) {
     let pdfPage: PDFPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -122,16 +151,6 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         y -= 22;
       }
     };
-
-    if (mode === 'plot') {
-      const lines = wrapText(page.plotText || '(sem resumo)', fontOblique, BODY_SIZE, CONTENT_WIDTH);
-      for (const line of lines) {
-        ensureSpace(LINE_HEIGHT);
-        pdfPage.drawText(line, { x: MARGIN, y, size: BODY_SIZE, font: fontOblique });
-        y -= LINE_HEIGHT;
-      }
-      continue;
-    }
 
     for (const block of page.blocks) {
       if (block.type === 'QUADRO') {

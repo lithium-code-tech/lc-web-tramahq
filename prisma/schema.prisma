@@ -23,8 +23,32 @@ model Script {
   owner      User        @relation(fields: [ownerId], references: [id])
   pages      Page[]
   characters Character[]
+  pitchDraft String      @default("") @db.Text
+  pitches    Pitch[]
+  editions   Edition[]
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
+}
+
+model Edition {
+  id       String @id @default(cuid())
+  scriptId String
+  script   Script @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  number   Int
+  text     String @db.Text
+
+  @@unique([scriptId, number])
+}
+
+model Pitch {
+  id        String   @id @default(cuid())
+  scriptId  String
+  script    Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  version   Int
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@unique([scriptId, version])
 }
 
 model Page {
@@ -56,8 +80,9 @@ model Block {
 }
 
 model Character {
-  id       String @id @default(cuid())
-  scriptId String
-  script   Script @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  name     String
+  id          String  @id @default(cuid())
+  scriptId    String
+  script      Script  @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  name        String
+  description String? @db.Text
 }

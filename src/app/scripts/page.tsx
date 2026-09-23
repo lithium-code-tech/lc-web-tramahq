@@ -21,6 +21,25 @@ function timeAgo(date: Date): string {
   return date.toLocaleDateString('pt-BR');
 }
 
+function ProjectLinks({ id, dark }: { id: string; dark?: boolean }) {
+  const base = 'px-3 py-1.5 text-[11px] font-semibold tracking-wide border-[1.5px]';
+  const outline = dark ? 'border-[#F2EDE1] text-[#F2EDE1]' : 'border-ink text-ink';
+  const filled = dark ? 'border-[#F2EDE1] bg-[#F2EDE1] text-ink' : 'border-ink bg-ink text-[#F2EDE1]';
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Link href={`/scripts/${id}?mode=pitch`} className={`${base} ${outline}`}>
+        PROPOSTA
+      </Link>
+      <Link href={`/scripts/${id}?mode=plot`} className={`${base} ${outline}`}>
+        TRAMA
+      </Link>
+      <Link href={`/scripts/${id}?mode=full`} className={`${base} ${filled}`}>
+        ROTEIRO
+      </Link>
+    </div>
+  );
+}
+
 export default async function ScriptsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect('/login');
@@ -48,10 +67,7 @@ export default async function ScriptsPage() {
         {current && (
           <div className="mb-10">
             <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#8F8878]">EM ANDAMENTO</div>
-            <Link
-              href={`/scripts/${current.id}`}
-              className="flex flex-col justify-between gap-4 border-[1.5px] border-ink bg-ink p-6 text-[#F2EDE1] sm:flex-row sm:items-center"
-            >
+            <div className="flex flex-col justify-between gap-4 border-[1.5px] border-ink bg-ink p-6 text-[#F2EDE1] sm:flex-row sm:items-center">
               <div>
                 <div className="font-display text-2xl font-bold">{current.title}</div>
                 <div className="mt-1 text-sm text-[#C9C2AE]">
@@ -59,10 +75,8 @@ export default async function ScriptsPage() {
                   {current._count.characters} personagens
                 </div>
               </div>
-              <span className="whitespace-nowrap border-[1.5px] border-[#F2EDE1] px-4 py-2 text-sm font-bold">
-                CONTINUAR ROTEIRO →
-              </span>
-            </Link>
+              <ProjectLinks id={current.id} dark />
+            </div>
           </div>
         )}
 
@@ -71,12 +85,15 @@ export default async function ScriptsPage() {
             <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#8F8878]">OUTROS ROTEIROS</div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               {rest.map((s) => (
-                <Link key={s.id} href={`/scripts/${s.id}`} className="border-[1.5px] border-ink bg-white p-4">
-                  <div className="font-display text-lg font-bold text-ink">{s.title}</div>
-                  <div className="text-xs text-[#8F8878]">
-                    editado {timeAgo(s.updatedAt)} · {s._count.pages} páginas
+                <div key={s.id} className="flex flex-col gap-3 border-[1.5px] border-ink bg-white p-4">
+                  <div>
+                    <div className="font-display text-lg font-bold text-ink">{s.title}</div>
+                    <div className="text-xs text-[#8F8878]">
+                      editado {timeAgo(s.updatedAt)} · {s._count.pages} páginas
+                    </div>
                   </div>
-                </Link>
+                  <ProjectLinks id={s.id} />
+                </div>
               ))}
             </div>
           </div>

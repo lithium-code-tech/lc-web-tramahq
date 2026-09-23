@@ -673,6 +673,16 @@ export default function EditorClient({
 
       {/* Personagens */}
       <div className="w-[248px] flex-shrink-0 bg-sidebar p-5 text-[#F2EDE1]">
+        {mode === 'FULL' && (
+          <div className="mb-5 border-[1.5px] border-[#4A453A] bg-[#26231D] p-3.5">
+            <div className="mb-1.5 text-[10px] font-bold tracking-wider text-[#9A927E]">
+              PLOT · PÁGINA {activePage.number}
+            </div>
+            <div className="whitespace-pre-wrap font-script text-[12.5px] italic leading-relaxed text-[#E5DFD0]">
+              {activePage.plotText?.trim() || 'Sem anotação de plot para esta página.'}
+            </div>
+          </div>
+        )}
         <div className="mb-4 font-display text-sm font-bold tracking-wide">PERSONAGENS</div>
         {characters.map((c) => (
           <div key={c.id} className="border-b border-[#3A362E] py-2.5 text-[13px] text-[#E5DFD0]">

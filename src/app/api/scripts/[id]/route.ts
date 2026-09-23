@@ -38,12 +38,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const { title, pages, characters, editions } = body as {
     title?: string;
     pages: {
+      editionNumber: number;
       number: number;
       plotText: string;
       blocks: { type: 'QUADRO' | 'DIALOGO' | 'ONOMATOPEIA'; number?: number; character?: string; text: string }[];
     }[];
     characters: { name: string; description?: string }[];
-    editions?: { number: number; subtitle?: string; text: string }[];
+    editions: { number: number; subtitle?: string; text: string }[];
   };
 
   await prisma.$transaction(async (tx) => {
@@ -54,12 +55,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // MVP: substitui o conteúdo inteiro a cada save (documento pequeno, simplicidade > eficiência)
     await tx.page.deleteMany({ where: { scriptId: params.id } });
     await tx.character.deleteMany({ where: { scriptId: params.id } });
-    if (editions) await tx.edition.deleteMany({ where: { scriptId: params.id } });
+    await tx.edition.deleteMany({ where: { scriptId: params.id } });
+
+    // Edições são recriadas primeiro pra ter os ids que as páginas vão referenciar.
+    const editionIdByNumber = new Map<number, string>();
+    for (const ed of editions) {
+      const created = await tx.edition.create({
+        data: { scriptId: params.id, number: ed.number, subtitle: ed.subtitle || '', text: ed.text }
+      });
+      editionIdByNumber.set(ed.number, created.id);
+    }
 
     for (const page of pages) {
+      const editionId = editionIdByNumber.get(page.editionNumber);
+      if (!editionId) continue;
       await tx.page.create({
         data: {
           scriptId: params.id,
+          editionId,
           number: page.number,
           plotText: page.plotText || '',
           blocks: {
@@ -77,14 +90,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     for (const ch of characters) {
       await tx.character.create({ data: { scriptId: params.id, name: ch.name, description: ch.description || '' } });
-    }
-
-    if (editions) {
-      for (const ed of editions) {
-        await tx.edition.create({
-          data: { scriptId: params.id, number: ed.number, subtitle: ed.subtitle || '', text: ed.text }
-        });
-      }
     }
   });
 

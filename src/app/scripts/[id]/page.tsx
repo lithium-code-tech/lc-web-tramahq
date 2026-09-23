@@ -50,6 +50,7 @@ export default async function ScriptPage({
         projectType: script.projectType,
         pages: script.pages.map((p) => ({
           id: p.id,
+          editionId: p.editionId,
           number: p.number,
           plotText: p.plotText || '',
           blocks: p.blocks.map((b) => ({

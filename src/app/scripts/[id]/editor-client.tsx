@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import LogoutButton from '@/components/logout-button';
 
 type BlockType = 'QUADRO' | 'DIALOGO' | 'ONOMATOPEIA';
@@ -16,6 +16,7 @@ interface Block {
 
 interface PageData {
   id: string;
+  editionId: string;
   number: number;
   plotText: string;
   blocks: Block[];
@@ -56,8 +57,14 @@ function newId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function makePage(number: number): PageData {
-  return { id: newId(), number, plotText: '', blocks: [{ id: newId(), type: 'QUADRO', number: 1, text: '' }] };
+function makePage(number: number, editionId: string): PageData {
+  return {
+    id: newId(),
+    editionId,
+    number,
+    plotText: '',
+    blocks: [{ id: newId(), type: 'QUADRO', number: 1, text: '' }]
+  };
 }
 
 export default function EditorClient({
@@ -68,11 +75,15 @@ export default function EditorClient({
   initialMode?: 'FULL' | 'PLOT' | 'OUTLINE' | 'PITCH';
 }) {
   const isSeries = initialScript.projectType === 'SERIES';
+  const initialEditions = initialScript.editions.length
+    ? initialScript.editions
+    : [{ id: newId(), number: 1, subtitle: '', text: '' }];
   const [title, setTitle] = useState(initialScript.title);
-  const [pages, setPages] = useState<PageData[]>(initialScript.pages.length ? initialScript.pages : [makePage(1)]);
   const [characters, setCharacters] = useState<CharacterData[]>(initialScript.characters);
-  const [editions, setEditions] = useState<EditionData[]>(
-    initialScript.editions.length ? initialScript.editions : [{ id: newId(), number: 1, text: '' }]
+  const [editions, setEditions] = useState<EditionData[]>(initialEditions);
+  const [activeEditionId, setActiveEditionId] = useState(initialEditions[0].id);
+  const [pages, setPages] = useState<PageData[]>(
+    initialScript.pages.length ? initialScript.pages : [makePage(1, initialEditions[0].id)]
   );
   const [mode, setMode] = useState<'FULL' | 'PLOT' | 'OUTLINE' | 'PITCH'>(initialMode || 'FULL');
   const [selectedPage, setSelectedPage] = useState(0);
@@ -118,6 +129,7 @@ export default function EditorClient({
         body: JSON.stringify({
           title,
           pages: pages.map((p) => ({
+            editionNumber: editions.find((e) => e.id === p.editionId)?.number ?? 1,
             number: p.number,
             plotText: p.plotText,
             blocks: p.blocks.map((b) => ({ type: b.type, number: b.number, character: b.character, text: b.text }))
@@ -181,28 +193,43 @@ export default function EditorClient({
     }
   }
 
-  const activePage = pages[selectedPage];
+  const pagesInEdition = useMemo(
+    () => pages.filter((p) => p.editionId === activeEditionId).sort((a, b) => a.number - b.number),
+    [pages, activeEditionId]
+  );
+  const activePage = pagesInEdition[selectedPage];
 
-  function updatePage(index: number, updater: (p: PageData) => PageData) {
-    setPages((prev) => prev.map((p, i) => (i === index ? updater(p) : p)));
+  function selectEdition(editionId: string) {
+    setActiveEditionId(editionId);
+    setSelectedPage(0);
+  }
+
+  function updatePageById(pageId: string, updater: (p: PageData) => PageData) {
+    setPages((prev) => prev.map((p) => (p.id === pageId ? updater(p) : p)));
   }
 
   function updateBlockText(blockId: string, text: string) {
-    updatePage(selectedPage, (p) => ({ ...p, blocks: p.blocks.map((b) => (b.id === blockId ? { ...b, text } : b)) }));
+    if (!activePage) return;
+    updatePageById(activePage.id, (p) => ({
+      ...p,
+      blocks: p.blocks.map((b) => (b.id === blockId ? { ...b, text } : b))
+    }));
   }
 
   function updateBlockCharacter(blockId: string, character: string) {
-    updatePage(selectedPage, (p) => ({
+    if (!activePage) return;
+    updatePageById(activePage.id, (p) => ({
       ...p,
       blocks: p.blocks.map((b) => (b.id === blockId ? { ...b, character } : b))
     }));
   }
 
   function cycleBlock(blockId: string, currentType: BlockType, isEmpty: boolean) {
+    if (!activePage) return;
     const normalNext: BlockType = currentType === 'QUADRO' ? 'DIALOGO' : currentType === 'DIALOGO' ? 'ONOMATOPEIA' : 'QUADRO';
     const nextType: BlockType = isEmpty ? 'QUADRO' : normalNext;
     const id = newId();
-    updatePage(selectedPage, (p) => {
+    updatePageById(activePage.id, (p) => {
       const idx = p.blocks.findIndex((b) => b.id === blockId);
       const number = nextType === 'QUADRO' ? p.blocks.filter((b) => b.type === 'QUADRO').length + 1 : undefined;
       const newBlock: Block = { id, type: nextType, number, text: '', character: '' };
@@ -213,7 +240,8 @@ export default function EditorClient({
   }
 
   function skipEmptyDialogo(blockId: string) {
-    updatePage(selectedPage, (p) => {
+    if (!activePage) return;
+    updatePageById(activePage.id, (p) => {
       const idx = p.blocks.findIndex((b) => b.id === blockId);
       const number = p.blocks.filter((b) => b.type === 'QUADRO').length + 1;
       const blocks = p.blocks.map((b, i) =>
@@ -225,21 +253,24 @@ export default function EditorClient({
   }
 
   function addPage() {
-    setPages((prev) => [...prev, makePage(prev.length + 1)]);
-    setSelectedPage(pages.length);
+    const newPage = makePage(pagesInEdition.length + 1, activeEditionId);
+    setPages((prev) => [...prev, newPage]);
+    setSelectedPage(pagesInEdition.length);
   }
 
   function updatePlotText(index: number, text: string) {
-    setPages((prev) => prev.map((p, i) => (i === index ? { ...p, plotText: text } : p)));
+    const page = pagesInEdition[index];
+    if (!page) return;
+    setPages((prev) => prev.map((p) => (p.id === page.id ? { ...p, plotText: text } : p)));
   }
 
   function advancePlot(index: number) {
-    if (index === pages.length - 1) {
-      const np = makePage(pages.length + 1);
+    if (index === pagesInEdition.length - 1) {
+      const np = makePage(pagesInEdition.length + 1, activeEditionId);
       setPages((prev) => [...prev, np]);
       setFocusId('plot-' + np.id);
     } else {
-      setFocusId('plot-' + pages[index + 1].id);
+      setFocusId('plot-' + pagesInEdition[index + 1].id);
     }
   }
 
@@ -317,8 +348,28 @@ export default function EditorClient({
           />
         </div>
 
+        {isSeries && (
+          <div className="flex flex-wrap gap-1.5">
+            {editions.map((ed) => (
+              <button
+                key={ed.id}
+                onClick={() => selectEdition(ed.id)}
+                title={ed.subtitle ? `Edição ${ed.number}: ${ed.subtitle}` : `Edição ${ed.number}`}
+                className="border-[1.5px] px-2.5 py-1 text-[11px] font-semibold"
+                style={{
+                  borderColor: ed.id === activeEditionId ? '#2B4C7E' : '#4A453A',
+                  background: ed.id === activeEditionId ? 'rgba(43,76,126,0.28)' : 'transparent',
+                  color: ed.id === activeEditionId ? '#F2EDE1' : '#9A927E'
+                }}
+              >
+                ED. {ed.number}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-col gap-0.5 overflow-y-auto">
-          {pages.map((p, i) => (
+          {pagesInEdition.map((p, i) => (
             <button
               key={p.id}
               onClick={() => setSelectedPage(i)}
@@ -346,7 +397,7 @@ export default function EditorClient({
 
         <div className="mt-auto flex flex-col gap-2 border-t border-[#3A362E] pt-4 text-[11.5px] text-[#6F6A5B]">
           <div>
-            {pages.length} páginas {saving && '· salvando…'}
+            {pagesInEdition.length} páginas {saving && '· salvando…'}
           </div>
           <LogoutButton />
         </div>
@@ -357,7 +408,7 @@ export default function EditorClient({
         <div className="flex flex-wrap items-center justify-between gap-4 border-b-[1.5px] border-paper-line px-12 py-5">
           <div>
             <div className="font-display text-[25px] font-bold text-ink">
-              {mode === 'FULL' ? `Página ${activePage.number}` : title}
+              {mode === 'FULL' ? (activePage ? `Página ${activePage.number}` : 'Edição vazia') : title}
             </div>
             <div className="text-xs text-[#8F8878]">
               {mode === 'FULL' ? 'Roteiro' : mode === 'PLOT' ? 'Plot — página a página' : mode === 'OUTLINE' ? 'Esboço da trama' : 'Proposta'}
@@ -524,7 +575,14 @@ export default function EditorClient({
             </div>
           )}
 
+          {mode === 'FULL' && !activePage && (
+            <div className="pl-[18px] text-sm text-[#9A927E]">
+              Esta edição ainda não tem páginas. Use "+ Página" na lateral pra começar.
+            </div>
+          )}
+
           {mode === 'FULL' &&
+            activePage &&
             activePage.blocks.map((b) => {
               if (b.type === 'DIALOGO') {
                 return (
@@ -600,15 +658,19 @@ export default function EditorClient({
               );
             })}
 
-          {mode === 'FULL' && (
+          {mode === 'FULL' && activePage && (
             <div className="pl-[18px] text-[11.5px] text-[#9A927E]">
               Enter alterna quadro → personagem → fala → onomatopeia. Enter vazio pula direto pro próximo quadro. Shift+Enter
               quebra linha.
             </div>
           )}
 
+          {mode === 'PLOT' && pagesInEdition.length === 0 && (
+            <div className="text-sm text-[#9A927E]">Esta edição ainda não tem páginas. Use "+ Página" na lateral pra começar.</div>
+          )}
+
           {mode === 'PLOT' &&
-            pages.map((p, i) => (
+            pagesInEdition.map((p, i) => (
               <div key={p.id} className="flex items-start gap-4 border-b border-paper-line pb-4">
                 <div className="w-[34px] flex-shrink-0 pt-0.5 font-display text-[15px] font-bold text-[#2B4C7E]">{p.number}</div>
                 <textarea
@@ -698,7 +760,7 @@ export default function EditorClient({
 
       {/* Personagens */}
       <div className="w-[248px] flex-shrink-0 bg-sidebar p-5 text-[#F2EDE1]">
-        {mode === 'FULL' && (
+        {mode === 'FULL' && activePage && (
           <div className="mb-5 border-[1.5px] border-[#4A453A] bg-[#26231D] p-3.5">
             <div className="mb-1.5 text-[10px] font-bold tracking-wider text-[#9A927E]">
               PLOT · PÁGINA {activePage.number}

@@ -43,6 +43,7 @@ model Edition {
   number   Int
   subtitle String?
   text     String  @db.Text
+  pages    Page[]
 
   @@unique([scriptId, number])
 }
@@ -59,14 +60,16 @@ model Pitch {
 }
 
 model Page {
-  id       String  @id @default(cuid())
-  scriptId String
-  script   Script  @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  number   Int
-  plotText String? @db.Text
-  blocks   Block[]
+  id        String  @id @default(cuid())
+  scriptId  String
+  script    Script  @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  editionId String
+  edition   Edition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  number    Int
+  plotText  String? @db.Text
+  blocks    Block[]
 
-  @@unique([scriptId, number])
+  @@unique([editionId, number])
 }
 
 enum BlockType {

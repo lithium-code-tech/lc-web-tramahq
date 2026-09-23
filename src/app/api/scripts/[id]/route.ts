@@ -43,7 +43,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       blocks: { type: 'QUADRO' | 'DIALOGO' | 'ONOMATOPEIA'; number?: number; character?: string; text: string }[];
     }[];
     characters: { name: string; description?: string }[];
-    editions?: { number: number; text: string }[];
+    editions?: { number: number; subtitle?: string; text: string }[];
   };
 
   await prisma.$transaction(async (tx) => {
@@ -81,7 +81,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     if (editions) {
       for (const ed of editions) {
-        await tx.edition.create({ data: { scriptId: params.id, number: ed.number, text: ed.text } });
+        await tx.edition.create({
+          data: { scriptId: params.id, number: ed.number, subtitle: ed.subtitle || '', text: ed.text }
+        });
       }
     }
   });

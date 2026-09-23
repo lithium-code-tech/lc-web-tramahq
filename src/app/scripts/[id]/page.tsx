@@ -69,8 +69,8 @@ export default async function ScriptPage({
           createdAt: p.createdAt.toISOString()
         })),
         editions: script.editions.length
-          ? script.editions.map((e) => ({ id: e.id, number: e.number, text: e.text }))
-          : [{ id: 'new-1', number: 1, text: '' }]
+          ? script.editions.map((e) => ({ id: e.id, number: e.number, subtitle: e.subtitle || '', text: e.text }))
+          : [{ id: 'new-1', number: 1, subtitle: '', text: '' }]
       }}
     />
   );

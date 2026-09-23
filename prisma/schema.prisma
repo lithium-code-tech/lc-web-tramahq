@@ -37,11 +37,12 @@ model Script {
 }
 
 model Edition {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   scriptId String
-  script   Script @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  script   Script  @relation(fields: [scriptId], references: [id], onDelete: Cascade)
   number   Int
-  text     String @db.Text
+  subtitle String?
+  text     String  @db.Text
 
   @@unique([scriptId, number])
 }

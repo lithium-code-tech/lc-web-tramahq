@@ -37,6 +37,7 @@ interface PitchVersion {
 interface EditionData {
   id: string;
   number: number;
+  subtitle?: string;
   text: string;
 }
 
@@ -122,7 +123,7 @@ export default function EditorClient({
             blocks: p.blocks.map((b) => ({ type: b.type, number: b.number, character: b.character, text: b.text }))
           })),
           characters: characters.map((c) => ({ name: c.name, description: c.description || '' })),
-          editions: editions.map((e) => ({ number: e.number, text: e.text }))
+          editions: editions.map((e) => ({ number: e.number, subtitle: e.subtitle || '', text: e.text }))
         })
       });
       setSaving(false);
@@ -246,13 +247,17 @@ export default function EditorClient({
     setEditions((prev) => prev.map((e, i) => (i === index ? { ...e, text } : e)));
   }
 
+  function updateEditionSubtitle(index: number, subtitle: string) {
+    setEditions((prev) => prev.map((e, i) => (i === index ? { ...e, subtitle } : e)));
+  }
+
   function advanceEdition(index: number) {
     if (index === editions.length - 1) {
-      const ne = { id: newId(), number: editions.length + 1, text: '' };
+      const ne = { id: newId(), number: editions.length + 1, subtitle: '', text: '' };
       setEditions((prev) => [...prev, ne]);
-      setFocusId('edition-' + ne.id);
+      setFocusId('edition-' + ne.id + '-subtitle');
     } else {
-      setFocusId('edition-' + editions[index + 1].id);
+      setFocusId('edition-' + editions[index + 1].id + '-subtitle');
     }
   }
 
@@ -264,6 +269,7 @@ export default function EditorClient({
       const extra = Array.from({ length: n - prev.length }, (_, i) => ({
         id: newId(),
         number: prev.length + i + 1,
+        subtitle: '',
         text: ''
       }));
       return [...prev, ...extra];
@@ -644,10 +650,29 @@ export default function EditorClient({
           {mode === 'OUTLINE' &&
             editions.map((e, i) => (
               <div key={e.id} className="border-l-[3px] border-[#2B4C7E] py-1 pl-[18px]">
-                <div className="mb-1.5 text-[10.5px] font-bold tracking-wider text-[#2B4C7E]">EDIÇÃO {e.number}</div>
+                <div className="mb-1.5 flex items-baseline gap-2">
+                  <span className="flex-shrink-0 text-[10.5px] font-bold tracking-wider text-[#2B4C7E]">
+                    EDIÇÃO {e.number}
+                  </span>
+                  <input
+                    ref={(el) => {
+                      fieldRefs.current['edition-' + e.id + '-subtitle'] = el;
+                    }}
+                    value={e.subtitle || ''}
+                    placeholder="Subtítulo desta edição…"
+                    onChange={(ev) => updateEditionSubtitle(i, ev.target.value)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter') {
+                        ev.preventDefault();
+                        setFocusId('edition-' + e.id + '-text');
+                      }
+                    }}
+                    className="flex-1 bg-transparent font-display text-[13px] font-semibold text-ink outline-none"
+                  />
+                </div>
                 <textarea
                   ref={(el) => {
-                    fieldRefs.current['edition-' + e.id] = el;
+                    fieldRefs.current['edition-' + e.id + '-text'] = el;
                   }}
                   rows={6}
                   value={e.text}

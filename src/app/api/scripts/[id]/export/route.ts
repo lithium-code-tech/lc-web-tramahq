@@ -112,7 +112,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       let y = PAGE_HEIGHT - MARGIN;
 
       const drawHeader = () => {
-        const label = 'EDIÇÃO ' + edition.number;
+        const label = 'EDIÇÃO ' + edition.number + (edition.subtitle ? ': ' + edition.subtitle : '');
         pdfPage.drawText(label, { x: MARGIN, y: PAGE_HEIGHT - 50, size: 14, font: fontBold });
         pdfPage.drawText(script.title.toUpperCase(), {
           x: MARGIN,

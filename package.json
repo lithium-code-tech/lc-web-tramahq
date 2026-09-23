@@ -4,12 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "prod:deploy": "npm run db:migrate:deploy && npm run build"
+    "db:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "next": "14.2.5",

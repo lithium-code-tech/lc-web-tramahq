@@ -8,7 +8,6 @@ type ProjectType = 'GRAPHIC_NOVEL' | 'SERIES';
 export default function NewScriptForm() {
   const router = useRouter();
   const [title, setTitle] = useState('');
-  const [pageCount, setPageCount] = useState('6');
   const [projectType, setProjectType] = useState<ProjectType>('SERIES');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -21,11 +20,7 @@ export default function NewScriptForm() {
       const res = await fetch('/api/scripts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          projectType,
-          pageCount: projectType === 'GRAPHIC_NOVEL' ? Number(pageCount) : 0
-        })
+        body: JSON.stringify({ title, projectType })
       });
 
       if (res.status === 401) {
@@ -93,19 +88,6 @@ export default function NewScriptForm() {
           className="w-full border-[1.5px] border-ink bg-[#FBF8F1] px-3 py-2 font-script text-sm outline-none focus:outline-accent-blue"
         />
       </div>
-      {projectType === 'GRAPHIC_NOVEL' && (
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold tracking-wide text-[#55503F]">NÚMERO DE PÁGINAS</label>
-          <input
-            type="number"
-            min={1}
-            max={80}
-            value={pageCount}
-            onChange={(e) => setPageCount(e.target.value)}
-            className="w-28 border-[1.5px] border-ink bg-[#FBF8F1] px-3 py-2 font-script text-sm outline-none focus:outline-accent-blue"
-          />
-        </div>
-      )}
       {error && <div className="text-sm text-accent-red">{error}</div>}
       <button disabled={loading} type="submit" className="bg-ink py-3 text-sm font-bold text-[#F2EDE1] disabled:opacity-50">
         {loading ? 'Criando…' : 'COMEÇAR ROTEIRO'}

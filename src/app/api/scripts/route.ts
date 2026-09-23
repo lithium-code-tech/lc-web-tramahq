@@ -21,10 +21,8 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
-  const { title, pageCount, projectType } = await req.json();
+  const { title, projectType } = await req.json();
   const type = projectType === 'GRAPHIC_NOVEL' ? 'GRAPHIC_NOVEL' : 'SERIES';
-  // Série define páginas edição por edição depois; Graphic Novel define tudo já na criação.
-  const count = type === 'GRAPHIC_NOVEL' ? Math.max(1, Math.min(80, Number(pageCount) || 1)) : 0;
 
   try {
     const script = await prisma.$transaction(async (tx) => {
@@ -36,21 +34,9 @@ export async function POST(req: Request) {
         }
       });
 
-      const edition = await tx.edition.create({
-        data: { scriptId: created.id, number: 1, subtitle: '', text: '' }
-      });
-
-      for (let i = 0; i < count; i++) {
-        await tx.page.create({
-          data: {
-            scriptId: created.id,
-            editionId: edition.id,
-            number: i + 1,
-            plotText: '',
-            blocks: { create: [{ order: 0, type: 'QUADRO' as const, number: 1, text: '' }] }
-          }
-        });
-      }
+      // A edição 1 nasce vazia — as páginas crescem a partir do Plot/Roteiro,
+      // sem precisar adivinhar a quantidade na hora de criar o projeto.
+      await tx.edition.create({ data: { scriptId: created.id, number: 1, subtitle: '', text: '' } });
 
       return tx.script.findUniqueOrThrow({
         where: { id: created.id },

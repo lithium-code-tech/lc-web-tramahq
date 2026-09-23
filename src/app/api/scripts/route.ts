@@ -21,13 +21,15 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
-  const { title, pageCount } = await req.json();
+  const { title, pageCount, projectType } = await req.json();
   const count = Math.max(1, Math.min(80, Number(pageCount) || 1));
+  const type = projectType === 'GRAPHIC_NOVEL' ? 'GRAPHIC_NOVEL' : 'SERIES';
 
   try {
     const script = await prisma.script.create({
       data: {
         title: (title || '').trim() || 'Sem Título',
+        projectType: type,
         ownerId: (session.user as any).id,
         pages: {
           create: Array.from({ length: count }, (_, i) => ({

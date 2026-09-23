@@ -16,18 +16,24 @@ model User {
   createdAt DateTime @default(now())
 }
 
+enum ProjectType {
+  GRAPHIC_NOVEL
+  SERIES
+}
+
 model Script {
-  id         String      @id @default(cuid())
-  title      String
-  ownerId    String
-  owner      User        @relation(fields: [ownerId], references: [id])
-  pages      Page[]
-  characters Character[]
-  pitchDraft String      @default("") @db.Text
-  pitches    Pitch[]
-  editions   Edition[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id          String      @id @default(cuid())
+  title       String
+  projectType ProjectType @default(SERIES)
+  ownerId     String
+  owner       User        @relation(fields: [ownerId], references: [id])
+  pages       Page[]
+  characters  Character[]
+  pitchDraft  String      @default("") @db.Text
+  pitches     Pitch[]
+  editions    Edition[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model Edition {

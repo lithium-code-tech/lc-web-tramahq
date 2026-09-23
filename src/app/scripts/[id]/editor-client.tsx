@@ -43,6 +43,7 @@ interface EditionData {
 interface ScriptData {
   id: string;
   title: string;
+  projectType: 'GRAPHIC_NOVEL' | 'SERIES';
   pages: PageData[];
   characters: CharacterData[];
   pitchDraft: string;
@@ -63,15 +64,16 @@ export default function EditorClient({
   initialMode
 }: {
   initialScript: ScriptData;
-  initialMode?: 'FULL' | 'PLOT' | 'PITCH';
+  initialMode?: 'FULL' | 'PLOT' | 'OUTLINE' | 'PITCH';
 }) {
+  const isSeries = initialScript.projectType === 'SERIES';
   const [title, setTitle] = useState(initialScript.title);
   const [pages, setPages] = useState<PageData[]>(initialScript.pages.length ? initialScript.pages : [makePage(1)]);
   const [characters, setCharacters] = useState<CharacterData[]>(initialScript.characters);
   const [editions, setEditions] = useState<EditionData[]>(
     initialScript.editions.length ? initialScript.editions : [{ id: newId(), number: 1, text: '' }]
   );
-  const [mode, setMode] = useState<'FULL' | 'PLOT' | 'PITCH'>(initialMode || 'FULL');
+  const [mode, setMode] = useState<'FULL' | 'PLOT' | 'OUTLINE' | 'PITCH'>(initialMode || 'FULL');
   const [selectedPage, setSelectedPage] = useState(0);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -226,6 +228,20 @@ export default function EditorClient({
     setSelectedPage(pages.length);
   }
 
+  function updatePlotText(index: number, text: string) {
+    setPages((prev) => prev.map((p, i) => (i === index ? { ...p, plotText: text } : p)));
+  }
+
+  function advancePlot(index: number) {
+    if (index === pages.length - 1) {
+      const np = makePage(pages.length + 1);
+      setPages((prev) => [...prev, np]);
+      setFocusId('plot-' + np.id);
+    } else {
+      setFocusId('plot-' + pages[index + 1].id);
+    }
+  }
+
   function updateEditionText(index: number, text: string) {
     setEditions((prev) => prev.map((e, i) => (i === index ? { ...e, text } : e)));
   }
@@ -338,7 +354,7 @@ export default function EditorClient({
               {mode === 'FULL' ? `Página ${activePage.number}` : title}
             </div>
             <div className="text-xs text-[#8F8878]">
-              {mode === 'FULL' ? 'Roteiro' : mode === 'PLOT' ? 'Trama' : 'Proposta'}
+              {mode === 'FULL' ? 'Roteiro' : mode === 'PLOT' ? 'Plot — página a página' : mode === 'OUTLINE' ? 'Esboço da trama' : 'Proposta'}
             </div>
           </div>
 
@@ -356,21 +372,32 @@ export default function EditorClient({
                 className="border-l-[1.5px] border-ink px-4 py-2 text-[12.5px] font-semibold tracking-wide"
                 style={{ background: mode === 'PLOT' ? '#201E19' : '#FBF8F1', color: mode === 'PLOT' ? '#F2EDE1' : '#201E19' }}
               >
-                TRAMA
+                PLOT
               </button>
-              <button
-                onClick={() => setMode('PITCH')}
-                className="border-l-[1.5px] border-ink px-4 py-2 text-[12.5px] font-semibold tracking-wide"
-                style={{ background: mode === 'PITCH' ? '#201E19' : '#FBF8F1', color: mode === 'PITCH' ? '#F2EDE1' : '#201E19' }}
-              >
-                PROPOSTA
-              </button>
+              {isSeries && (
+                <button
+                  onClick={() => setMode('OUTLINE')}
+                  className="border-l-[1.5px] border-ink px-4 py-2 text-[12.5px] font-semibold tracking-wide"
+                  style={{ background: mode === 'OUTLINE' ? '#201E19' : '#FBF8F1', color: mode === 'OUTLINE' ? '#F2EDE1' : '#201E19' }}
+                >
+                  ESBOÇO DA TRAMA
+                </button>
+              )}
+              {isSeries && (
+                <button
+                  onClick={() => setMode('PITCH')}
+                  className="border-l-[1.5px] border-ink px-4 py-2 text-[12.5px] font-semibold tracking-wide"
+                  style={{ background: mode === 'PITCH' ? '#201E19' : '#FBF8F1', color: mode === 'PITCH' ? '#F2EDE1' : '#201E19' }}
+                >
+                  PROPOSTA
+                </button>
+              )}
             </div>
             <a
               href={
                 mode === 'PITCH'
                   ? `/api/scripts/${initialScript.id}/pitch/export`
-                  : `/api/scripts/${initialScript.id}/export?mode=${mode === 'PLOT' ? 'plot' : 'full'}`
+                  : `/api/scripts/${initialScript.id}/export?mode=${mode === 'PLOT' ? 'plot' : mode === 'OUTLINE' ? 'outline' : 'full'}`
               }
               className={
                 'border-[1.5px] border-ink bg-ink px-4 py-2 text-[12.5px] font-semibold text-[#F2EDE1]' +
@@ -574,7 +601,33 @@ export default function EditorClient({
             </div>
           )}
 
+          {mode === 'PLOT' &&
+            pages.map((p, i) => (
+              <div key={p.id} className="flex items-start gap-4 border-b border-paper-line pb-4">
+                <div className="w-[34px] flex-shrink-0 pt-0.5 font-display text-[15px] font-bold text-[#2B4C7E]">{p.number}</div>
+                <textarea
+                  ref={(el) => {
+                    fieldRefs.current['plot-' + p.id] = el;
+                  }}
+                  rows={2}
+                  value={p.plotText}
+                  placeholder="O que acontece nesta página…"
+                  onChange={(e) => updatePlotText(i, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      advancePlot(i);
+                    }
+                  }}
+                  className="flex-1 resize-y bg-transparent text-center font-script text-sm italic leading-relaxed text-ink outline-none"
+                />
+              </div>
+            ))}
           {mode === 'PLOT' && (
+            <div className="text-[11.5px] text-[#9A927E]">Enter pula para a próxima página. Plot é página a página.</div>
+          )}
+
+          {mode === 'OUTLINE' && (
             <div className="mb-2 flex items-center gap-3">
               <label className="text-[11px] font-semibold tracking-wide text-[#9A927E]">QUANTIDADE DE EDIÇÕES</label>
               <input
@@ -588,7 +641,7 @@ export default function EditorClient({
             </div>
           )}
 
-          {mode === 'PLOT' &&
+          {mode === 'OUTLINE' &&
             editions.map((e, i) => (
               <div key={e.id} className="border-l-[3px] border-[#2B4C7E] py-1 pl-[18px]">
                 <div className="mb-1.5 text-[10.5px] font-bold tracking-wider text-[#2B4C7E]">EDIÇÃO {e.number}</div>
@@ -610,7 +663,7 @@ export default function EditorClient({
                 />
               </div>
             ))}
-          {mode === 'PLOT' && (
+          {mode === 'OUTLINE' && (
             <div className="pl-[18px] text-[11.5px] text-[#9A927E]">
               Enter avança pra próxima edição (cria uma nova se for a última). Shift+Enter quebra linha.
             </div>

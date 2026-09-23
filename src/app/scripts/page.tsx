@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import AppSidebar from '@/components/app-sidebar';
 import NewScriptForm from './new-script-form';
+import DeleteScriptButton from './delete-script-button';
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -21,18 +22,25 @@ function timeAgo(date: Date): string {
   return date.toLocaleDateString('pt-BR');
 }
 
-function ProjectLinks({ id, dark }: { id: string; dark?: boolean }) {
+function ProjectLinks({ id, projectType, dark }: { id: string; projectType: string; dark?: boolean }) {
   const base = 'px-3 py-1.5 text-[11px] font-semibold tracking-wide border-[1.5px]';
   const outline = dark ? 'border-[#F2EDE1] text-[#F2EDE1]' : 'border-ink text-ink';
   const filled = dark ? 'border-[#F2EDE1] bg-[#F2EDE1] text-ink' : 'border-ink bg-ink text-[#F2EDE1]';
   return (
     <div className="flex flex-wrap gap-2">
-      <Link href={`/scripts/${id}?mode=pitch`} className={`${base} ${outline}`}>
-        PROPOSTA
-      </Link>
+      {projectType === 'SERIES' && (
+        <Link href={`/scripts/${id}?mode=pitch`} className={`${base} ${outline}`}>
+          PROPOSTA
+        </Link>
+      )}
       <Link href={`/scripts/${id}?mode=plot`} className={`${base} ${outline}`}>
-        TRAMA
+        PLOT
       </Link>
+      {projectType === 'SERIES' && (
+        <Link href={`/scripts/${id}?mode=outline`} className={`${base} ${outline}`}>
+          ESBOÇO DA TRAMA
+        </Link>
+      )}
       <Link href={`/scripts/${id}?mode=full`} className={`${base} ${filled}`}>
         ROTEIRO
       </Link>
@@ -69,13 +77,20 @@ export default async function ScriptsPage() {
             <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#8F8878]">EM ANDAMENTO</div>
             <div className="flex flex-col justify-between gap-4 border-[1.5px] border-ink bg-ink p-6 text-[#F2EDE1] sm:flex-row sm:items-center">
               <div>
-                <div className="font-display text-2xl font-bold">{current.title}</div>
+                <div className="flex items-center gap-3">
+                  <div className="font-display text-2xl font-bold">{current.title}</div>
+                  <DeleteScriptButton
+                    scriptId={current.id}
+                    title={current.title}
+                    className="text-[11px] font-semibold text-[#E39B8F] hover:text-[#F2C4BA] disabled:opacity-50"
+                  />
+                </div>
                 <div className="mt-1 text-sm text-[#C9C2AE]">
                   editado {timeAgo(current.updatedAt)} · {current._count.pages} páginas ·{' '}
                   {current._count.characters} personagens
                 </div>
               </div>
-              <ProjectLinks id={current.id} dark />
+              <ProjectLinks id={current.id} projectType={current.projectType} dark />
             </div>
           </div>
         )}
@@ -87,12 +102,15 @@ export default async function ScriptsPage() {
               {rest.map((s) => (
                 <div key={s.id} className="flex flex-col gap-3 border-[1.5px] border-ink bg-white p-4">
                   <div>
-                    <div className="font-display text-lg font-bold text-ink">{s.title}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="font-display text-lg font-bold text-ink">{s.title}</div>
+                      <DeleteScriptButton scriptId={s.id} title={s.title} />
+                    </div>
                     <div className="text-xs text-[#8F8878]">
                       editado {timeAgo(s.updatedAt)} · {s._count.pages} páginas
                     </div>
                   </div>
-                  <ProjectLinks id={s.id} />
+                  <ProjectLinks id={s.id} projectType={s.projectType} />
                 </div>
               ))}
             </div>

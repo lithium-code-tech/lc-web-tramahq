@@ -26,7 +26,20 @@ export default async function ScriptPage({
 
   if (!script || script.ownerId !== (session.user as any).id) redirect('/scripts');
 
-  const initialMode = searchParams.mode === 'plot' ? 'PLOT' : searchParams.mode === 'pitch' ? 'PITCH' : 'FULL';
+  const requestedMode =
+    searchParams.mode === 'plot'
+      ? 'PLOT'
+      : searchParams.mode === 'outline'
+        ? 'OUTLINE'
+        : searchParams.mode === 'pitch'
+          ? 'PITCH'
+          : 'FULL';
+
+  // Graphic Novel é single issue: só Roteiro e Plot existem.
+  const initialMode =
+    script.projectType === 'GRAPHIC_NOVEL' && (requestedMode === 'OUTLINE' || requestedMode === 'PITCH')
+      ? 'FULL'
+      : requestedMode;
 
   return (
     <EditorClient
@@ -34,6 +47,7 @@ export default async function ScriptPage({
       initialScript={{
         id: script.id,
         title: script.title,
+        projectType: script.projectType,
         pages: script.pages.map((p) => ({
           id: p.id,
           number: p.number,

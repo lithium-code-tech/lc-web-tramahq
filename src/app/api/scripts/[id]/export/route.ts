@@ -34,7 +34,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 
   const url = new URL(req.url);
-  const mode = url.searchParams.get('mode') === 'plot' ? 'plot' : 'full';
+  const modeParam = url.searchParams.get('mode');
+  const mode = modeParam === 'plot' ? 'plot' : modeParam === 'outline' ? 'outline' : 'full';
 
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Courier);
@@ -54,9 +55,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     drawCentered(cover, 'roteiro de ' + authorName, titleY - 10, fontOblique, 13, rgb(0.3, 0.3, 0.28));
   }
 
-  const formatLabel = mode === 'plot' ? 'FORMATO: TRAMA' : 'FORMATO: ROTEIRO';
+  const formatLabel =
+    mode === 'plot' ? 'FORMATO: PLOT' : mode === 'outline' ? 'FORMATO: ESBOÇO DA TRAMA' : 'FORMATO: ROTEIRO';
   drawCentered(cover, formatLabel, MARGIN + 34, font, 9, rgb(0.5, 0.5, 0.45));
-  const countLabel = mode === 'plot' ? `${script.editions.length} edições` : `${script.pages.length} páginas`;
+  const countLabel = mode === 'outline' ? `${script.editions.length} edições` : `${script.pages.length} páginas`;
   drawCentered(
     cover,
     `${countLabel} · exportado em ${new Date().toLocaleDateString('pt-BR')}`,
@@ -66,7 +68,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     rgb(0.5, 0.5, 0.45)
   );
 
-  if (mode === 'plot') {
+  if (mode === 'outline') {
     for (const edition of script.editions) {
       let pdfPage: PDFPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
       let y = PAGE_HEIGHT - MARGIN;
@@ -113,7 +115,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}-trama.pdf"`
+        'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}-esboco-da-trama.pdf"`
       }
     });
   }
@@ -151,6 +153,16 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         y -= 22;
       }
     };
+
+    if (mode === 'plot') {
+      const lines = wrapText(page.plotText || '(sem resumo)', fontOblique, BODY_SIZE, CONTENT_WIDTH);
+      for (const line of lines) {
+        ensureSpace(LINE_HEIGHT);
+        pdfPage.drawText(line, { x: MARGIN, y, size: BODY_SIZE, font: fontOblique });
+        y -= LINE_HEIGHT;
+      }
+      continue;
+    }
 
     for (const block of page.blocks) {
       if (block.type === 'QUADRO') {
@@ -201,10 +213,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 
   const bytes = await pdf.save();
+  const suffix = mode === 'plot' ? '-plot' : '';
   return new NextResponse(Buffer.from(bytes), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}.pdf"`
+      'Content-Disposition': `attachment; filename="${script.title.replace(/[^a-z0-9]+/gi, '-')}${suffix}.pdf"`
     }
   });
 }

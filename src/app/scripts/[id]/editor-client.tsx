@@ -67,6 +67,18 @@ function makePage(number: number, editionId: string): PageData {
   };
 }
 
+function ReferenceCard({ label, subtitle, text, empty }: { label: string; subtitle?: string; text: string; empty: string }) {
+  return (
+    <div className="mb-5 border-[1.5px] border-[#4A453A] bg-[#26231D] p-3.5">
+      <div className="mb-1.5 text-[10px] font-bold tracking-wider text-[#9A927E]">{label}</div>
+      {subtitle?.trim() && <div className="mb-1 font-display text-[12.5px] font-semibold text-[#F2EDE1]">{subtitle}</div>}
+      <div className="max-h-[45vh] overflow-y-auto whitespace-pre-wrap font-script text-[12.5px] italic leading-relaxed text-[#E5DFD0]">
+        {text?.trim() || empty}
+      </div>
+    </div>
+  );
+}
+
 export default function EditorClient({
   initialScript,
   initialMode
@@ -198,6 +210,7 @@ export default function EditorClient({
     [pages, activeEditionId]
   );
   const activePage = pagesInEdition[selectedPage];
+  const activeEdition = editions.find((e) => e.id === activeEditionId);
 
   function selectEdition(editionId: string) {
     setActiveEditionId(editionId);
@@ -761,15 +774,21 @@ export default function EditorClient({
       {/* Personagens */}
       <div className="w-[248px] flex-shrink-0 bg-sidebar p-5 text-[#F2EDE1]">
         {mode === 'FULL' && activePage && (
-          <div className="mb-5 border-[1.5px] border-[#4A453A] bg-[#26231D] p-3.5">
-            <div className="mb-1.5 text-[10px] font-bold tracking-wider text-[#9A927E]">
-              PLOT · PÁGINA {activePage.number}
-            </div>
-            <div className="whitespace-pre-wrap font-script text-[12.5px] italic leading-relaxed text-[#E5DFD0]">
-              {activePage.plotText?.trim() || 'Sem anotação de plot para esta página.'}
-            </div>
-          </div>
+          <ReferenceCard
+            label={`PLOT · PÁGINA ${activePage.number}`}
+            text={activePage.plotText}
+            empty="Sem anotação de plot para esta página."
+          />
         )}
+        {mode === 'PLOT' && isSeries && activeEdition && (
+          <ReferenceCard
+            label={`ESBOÇO · EDIÇÃO ${activeEdition.number}`}
+            subtitle={activeEdition.subtitle}
+            text={activeEdition.text}
+            empty="Sem esboço para esta edição."
+          />
+        )}
+        {mode === 'OUTLINE' && <ReferenceCard label="PROPOSTA" text={pitchText} empty="Proposta ainda não escrita." />}
         <div className="mb-4 font-display text-sm font-bold tracking-wide">PERSONAGENS</div>
         {characters.map((c) => (
           <div key={c.id} className="border-b border-[#3A362E] py-2.5 text-[13px] text-[#E5DFD0]">

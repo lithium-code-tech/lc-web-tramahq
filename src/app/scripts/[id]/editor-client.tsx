@@ -53,6 +53,12 @@ interface ScriptData {
   editions: EditionData[];
 }
 
+// Quadros são numerados pela posição na página — recalculado a cada inserção/remoção
+function renumberQuadros(blocks: Block[]): Block[] {
+  let n = 0;
+  return blocks.map((b) => (b.type === 'QUADRO' ? { ...b, number: ++n } : b));
+}
+
 function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -69,6 +75,21 @@ function makePage(number: number, editionId: string): PageData {
     plotText: '',
     blocks: [{ id: newId(), type: 'QUADRO', number: 1, text: '' }]
   };
+}
+
+function DeleteBlockButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className="px-1 text-sm font-normal leading-none text-muted opacity-0 transition-opacity hover:text-accent-red group-focus-within:opacity-100 group-hover:opacity-100"
+    >
+      ×
+    </button>
+  );
 }
 
 function ReferenceCard({ label, subtitle, text, empty }: { label: string; subtitle?: string; text: string; empty: string }) {
@@ -250,10 +271,9 @@ export default function EditorClient({
     const id = newId();
     updatePageById(activePage.id, (p) => {
       const idx = p.blocks.findIndex((b) => b.id === blockId);
-      const number = nextType === 'QUADRO' ? p.blocks.filter((b) => b.type === 'QUADRO').length + 1 : undefined;
-      const newBlock: Block = { id, type: nextType, number, text: '', character: '' };
+      const newBlock: Block = { id, type: nextType, text: '', character: '' };
       const blocks = [...p.blocks.slice(0, idx + 1), newBlock, ...p.blocks.slice(idx + 1)];
-      return { ...p, blocks };
+      return { ...p, blocks: renumberQuadros(blocks) };
     });
     setFocusId(nextType === 'DIALOGO' ? id + '-char' : id);
   }
@@ -261,14 +281,42 @@ export default function EditorClient({
   function skipEmptyBlock(blockId: string) {
     if (!activePage) return;
     updatePageById(activePage.id, (p) => {
-      const idx = p.blocks.findIndex((b) => b.id === blockId);
-      const number = p.blocks.filter((b) => b.type === 'QUADRO').length + 1;
-      const blocks = p.blocks.map((b, i) =>
-        i === idx ? { id: b.id, type: 'QUADRO' as BlockType, number, text: '', character: '' } : b
+      const blocks = p.blocks.map((b) =>
+        b.id === blockId ? { id: b.id, type: 'QUADRO' as BlockType, text: '', character: '' } : b
       );
-      return { ...p, blocks };
+      return { ...p, blocks: renumberQuadros(blocks) };
     });
     setFocusId(blockId);
+  }
+
+  // Remove um bloco. Quadro leva junto as falas/onomatopeias que vêm logo depois dele.
+  // Pelo teclado (Backspace em bloco vazio) só remove quando o bloco está sozinho.
+  function removeBlock(blockId: string, viaKeyboard = false) {
+    if (!activePage) return;
+    const blocks = activePage.blocks;
+    const idx = blocks.findIndex((b) => b.id === blockId);
+    if (idx === -1) return;
+    let end = idx + 1;
+    if (blocks[idx].type === 'QUADRO') {
+      while (end < blocks.length && blocks[end].type !== 'QUADRO') end++;
+    }
+    const removed = blocks.slice(idx, end);
+    if (viaKeyboard && (removed.length > 1 || blocks.length === 1)) return;
+    const hasContent = removed.some((b) => b.text.trim() || b.character?.trim());
+    if (!viaKeyboard && hasContent) {
+      const what =
+        blocks[idx].type === 'QUADRO'
+          ? `o Quadro ${blocks[idx].number}` + (removed.length > 1 ? ' e as falas/onomatopeias dele' : '')
+          : blocks[idx].type === 'DIALOGO'
+            ? 'esta fala'
+            : 'esta onomatopeia';
+      if (!window.confirm(`Excluir ${what}?`)) return;
+    }
+
+    let remaining = [...blocks.slice(0, idx), ...blocks.slice(end)];
+    if (remaining.length === 0) remaining = [{ id: newId(), type: 'QUADRO', text: '' }];
+    updatePageById(activePage.id, (p) => ({ ...p, blocks: renumberQuadros(remaining) }));
+    setFocusId((remaining[idx - 1] ?? remaining[0]).id);
   }
 
   function addPage() {
@@ -605,8 +653,11 @@ export default function EditorClient({
             activePage.blocks.map((b) => {
               if (b.type === 'DIALOGO') {
                 return (
-                  <div key={b.id} className="flex flex-col gap-1 border-l-[3px] border-[#D8CFB8] py-1 pl-[18px]">
-                    <div className="text-[10.5px] font-bold tracking-wider text-muted">DIÁLOGO</div>
+                  <div key={b.id} className="group flex flex-col gap-1 border-l-[3px] border-[#D8CFB8] py-1 pl-[18px]">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold tracking-wider text-muted">
+                      DIÁLOGO
+                      <DeleteBlockButton label="Excluir fala" onClick={() => removeBlock(b.id)} />
+                    </div>
                     <input
                       ref={(el) => {
                         fieldRefs.current[b.id + '-char'] = el;
@@ -619,6 +670,9 @@ export default function EditorClient({
                           e.preventDefault();
                           if (e.currentTarget.value.trim() === '') skipEmptyBlock(b.id);
                           else setFocusId(b.id);
+                        } else if (e.key === 'Backspace' && e.currentTarget.value === '' && !b.text) {
+                          e.preventDefault();
+                          removeBlock(b.id, true);
                         }
                       }}
                       className="w-full bg-transparent text-center font-script text-[13px] font-bold uppercase tracking-wide text-ink outline-none"
@@ -635,6 +689,9 @@ export default function EditorClient({
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           cycleBlock(b.id, b.type, e.currentTarget.value.trim() === '');
+                        } else if (e.key === 'Backspace' && e.currentTarget.value === '') {
+                          e.preventDefault();
+                          setFocusId(b.id + '-char');
                         }
                       }}
                       className="w-full resize-y bg-transparent text-center font-script text-sm leading-relaxed text-ink outline-none"
@@ -645,12 +702,16 @@ export default function EditorClient({
 
               const isOnomatopeia = b.type === 'ONOMATOPEIA';
               return (
-                <div key={b.id} className="border-l-[3px] py-1 pl-[18px]" style={{ borderColor: isOnomatopeia ? '#A23B2E' : '#2B4C7E' }}>
+                <div key={b.id} className="group border-l-[3px] py-1 pl-[18px]" style={{ borderColor: isOnomatopeia ? '#A23B2E' : '#2B4C7E' }}>
                   <div
-                    className="mb-1.5 text-[10.5px] font-bold tracking-wider"
+                    className="mb-1.5 flex items-center justify-between text-[10.5px] font-bold tracking-wider"
                     style={{ color: isOnomatopeia ? '#A23B2E' : '#2B4C7E' }}
                   >
                     {b.type === 'QUADRO' ? `QUADRO ${b.number}` : 'ONOMATOPEIA'}
+                    <DeleteBlockButton
+                      label={b.type === 'QUADRO' ? 'Excluir quadro' : 'Excluir onomatopeia'}
+                      onClick={() => removeBlock(b.id)}
+                    />
                   </div>
                   <textarea
                     ref={(el) => {
@@ -664,6 +725,9 @@ export default function EditorClient({
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         cycleBlock(b.id, b.type, e.currentTarget.value.trim() === '');
+                      } else if (e.key === 'Backspace' && e.currentTarget.value === '') {
+                        e.preventDefault();
+                        removeBlock(b.id, true);
                       }
                     }}
                     className="w-full resize-y bg-transparent font-script text-sm leading-relaxed text-ink outline-none"
@@ -678,8 +742,8 @@ export default function EditorClient({
 
           {mode === 'FULL' && activePage && (
             <div className="pl-[18px] text-[11.5px] text-muted">
-              Enter alterna quadro → personagem → fala → onomatopeia. Enter vazio pula direto pro próximo quadro. Shift+Enter
-              quebra linha.
+              Enter alterna quadro → personagem → fala → onomatopeia. Enter vazio pula direto pro próximo quadro. Backspace num
+              bloco vazio apaga ele. Shift+Enter quebra linha.
             </div>
           )}
 

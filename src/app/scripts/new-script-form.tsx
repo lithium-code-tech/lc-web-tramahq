@@ -84,7 +84,7 @@ export default function NewScriptForm() {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Ex.: Diesel"
+          placeholder="Ex.: Watchmen"
           className="w-full border-[1.5px] border-ink bg-[#FBF8F1] px-3 py-2 font-script text-sm outline-none focus:outline-accent-blue"
         />
       </div>

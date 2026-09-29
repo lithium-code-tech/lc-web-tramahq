@@ -66,7 +66,7 @@ export default async function ScriptsPage() {
 
       <div className="flex-1 px-12 py-12">
         <h1 className="mb-1 font-display text-2xl font-bold text-ink">Seus roteiros</h1>
-        <p className="mb-8 text-sm text-[#8F8878]">
+        <p className="mb-8 text-sm text-muted">
           {scripts.length > 0
             ? 'Continue de onde parou ou comece uma história nova.'
             : 'Nenhum roteiro ainda — comece sua primeira história abaixo.'}
@@ -74,7 +74,7 @@ export default async function ScriptsPage() {
 
         {current && (
           <div className="mb-10">
-            <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#8F8878]">EM ANDAMENTO</div>
+            <div className="mb-2 text-[11px] font-semibold tracking-wide text-muted">EM ANDAMENTO</div>
             <div className="flex flex-col justify-between gap-4 border-[1.5px] border-ink bg-ink p-6 text-[#F2EDE1] sm:flex-row sm:items-center">
               <div>
                 <div className="flex items-center gap-3">
@@ -97,7 +97,7 @@ export default async function ScriptsPage() {
 
         {rest.length > 0 && (
           <div className="mb-10">
-            <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#8F8878]">OUTROS ROTEIROS</div>
+            <div className="mb-2 text-[11px] font-semibold tracking-wide text-muted">OUTROS ROTEIROS</div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               {rest.map((s) => (
                 <div key={s.id} className="flex flex-col gap-3 border-[1.5px] border-ink bg-white p-4">
@@ -106,7 +106,7 @@ export default async function ScriptsPage() {
                       <div className="font-display text-lg font-bold text-ink">{s.title}</div>
                       <DeleteScriptButton scriptId={s.id} title={s.title} />
                     </div>
-                    <div className="text-xs text-[#8F8878]">
+                    <div className="text-xs text-muted">
                       editado {timeAgo(s.updatedAt)} · {s._count.pages} páginas
                     </div>
                   </div>

@@ -53,6 +53,10 @@ interface ScriptData {
   editions: EditionData[];
 }
 
+function plural(n: number, one: string, many: string) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 function newId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -239,6 +243,8 @@ export default function EditorClient({
 
   function cycleBlock(blockId: string, currentType: BlockType, isEmpty: boolean) {
     if (!activePage) return;
+    // Onomatopeia vazia vira o próximo quadro no lugar, em vez de ficar sobrando na página
+    if (isEmpty && currentType === 'ONOMATOPEIA') return skipEmptyBlock(blockId);
     const normalNext: BlockType = currentType === 'QUADRO' ? 'DIALOGO' : currentType === 'DIALOGO' ? 'ONOMATOPEIA' : 'QUADRO';
     const nextType: BlockType = isEmpty ? 'QUADRO' : normalNext;
     const id = newId();
@@ -252,7 +258,7 @@ export default function EditorClient({
     setFocusId(nextType === 'DIALOGO' ? id + '-char' : id);
   }
 
-  function skipEmptyDialogo(blockId: string) {
+  function skipEmptyBlock(blockId: string) {
     if (!activePage) return;
     updatePageById(activePage.id, (p) => {
       const idx = p.blocks.findIndex((b) => b.id === blockId);
@@ -370,8 +376,8 @@ export default function EditorClient({
                 title={ed.subtitle ? `Edição ${ed.number}: ${ed.subtitle}` : `Edição ${ed.number}`}
                 className="border-[1.5px] px-2.5 py-1 text-[11px] font-semibold"
                 style={{
-                  borderColor: ed.id === activeEditionId ? '#2B4C7E' : '#4A453A',
-                  background: ed.id === activeEditionId ? 'rgba(43,76,126,0.28)' : 'transparent',
+                  borderColor: ed.id === activeEditionId ? '#F2EDE1' : '#4A453A',
+                  background: ed.id === activeEditionId ? '#34302A' : 'transparent',
                   color: ed.id === activeEditionId ? '#F2EDE1' : '#9A927E'
                 }}
               >
@@ -388,14 +394,14 @@ export default function EditorClient({
               onClick={() => setSelectedPage(i)}
               className="flex items-center justify-between border-l-[3px] px-3 py-2.5 text-left"
               style={{
-                borderColor: i === selectedPage ? '#2B4C7E' : 'transparent',
-                background: i === selectedPage ? 'rgba(43,76,126,0.22)' : 'transparent'
+                borderColor: i === selectedPage ? '#F2EDE1' : 'transparent',
+                background: i === selectedPage ? '#34302A' : 'transparent'
               }}
             >
               <div className="flex flex-col gap-0.5">
                 <span className="font-display text-sm font-semibold text-[#F2EDE1]">Página {p.number}</span>
                 <span className="text-[11.5px] text-[#9A927E]">
-                  {p.blocks.filter((b) => b.type === 'QUADRO').length} quadros
+                  {plural(p.blocks.filter((b) => b.type === 'QUADRO').length, 'quadro', 'quadros')}
                 </span>
               </div>
             </button>
@@ -408,9 +414,9 @@ export default function EditorClient({
           </button>
         </div>
 
-        <div className="mt-auto flex flex-col gap-2 border-t border-[#3A362E] pt-4 text-[11.5px] text-[#6F6A5B]">
+        <div className="mt-auto flex flex-col gap-2 border-t border-[#3A362E] pt-4 text-[11.5px] text-[#8A846F]">
           <div>
-            {pagesInEdition.length} páginas {saving && '· salvando…'}
+            {plural(pagesInEdition.length, 'página', 'páginas')} {saving && '· salvando…'}
           </div>
           <LogoutButton />
         </div>
@@ -423,7 +429,7 @@ export default function EditorClient({
             <div className="font-display text-[25px] font-bold text-ink">
               {mode === 'FULL' ? (activePage ? `Página ${activePage.number}` : 'Edição vazia') : title}
             </div>
-            <div className="text-xs text-[#8F8878]">
+            <div className="text-xs text-muted">
               {mode === 'FULL' ? 'Roteiro' : mode === 'PLOT' ? 'Plot — página a página' : mode === 'OUTLINE' ? 'Esboço da trama' : 'Proposta'}
             </div>
           </div>
@@ -479,11 +485,11 @@ export default function EditorClient({
           </div>
         </div>
 
-        <div className="flex max-w-[760px] flex-1 flex-col gap-5 overflow-y-auto px-12 pb-24 pt-10">
+        <div className="mx-auto flex w-full max-w-[760px] flex-1 flex-col gap-5 overflow-y-auto px-12 pb-24 pt-10">
           {mode === 'PITCH' && (
             <div className="flex flex-col gap-6">
               <div>
-                <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#9A927E]">PERSONAGENS</div>
+                <div className="mb-2 text-[11px] font-semibold tracking-wide text-muted">PERSONAGENS</div>
                 <div className="flex flex-col gap-2">
                   {characters.map((c) => (
                     <div key={c.id} className="border-[1.5px] border-ink bg-white p-3">
@@ -523,14 +529,14 @@ export default function EditorClient({
                 </div>
                 <button
                   onClick={addCharacterFromPitch}
-                  className="mt-2 w-full border border-dashed border-[#D8CFB8] py-2 text-center text-xs font-semibold text-[#9A927E]"
+                  className="mt-2 w-full border border-dashed border-[#D8CFB8] py-2 text-center text-xs font-semibold text-muted"
                 >
                   + Personagem
                 </button>
               </div>
 
               <div>
-                <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#9A927E]">PROPOSTA ESCRITA</div>
+                <div className="mb-2 text-[11px] font-semibold tracking-wide text-muted">PROPOSTA ESCRITA</div>
                 <textarea
                   value={pitchText}
                   onChange={(e) => setPitchText(e.target.value)}
@@ -541,7 +547,7 @@ export default function EditorClient({
               </div>
 
               <div className="flex items-center justify-between">
-                <div className="text-[11.5px] text-[#9A927E]">{pitchSaving ? 'salvando rascunho…' : 'rascunho salvo'}</div>
+                <div className="text-[11.5px] text-muted">{pitchSaving ? 'salvando rascunho…' : 'rascunho salvo'}</div>
                 <div className="flex items-center gap-3">
                   {pitchError && <span className="text-[11.5px] text-accent-red">{pitchError}</span>}
                   <button
@@ -555,9 +561,9 @@ export default function EditorClient({
               </div>
 
               <div>
-                <div className="mb-2 text-[11px] font-semibold tracking-wide text-[#9A927E]">HISTÓRICO DE VERSÕES</div>
+                <div className="mb-2 text-[11px] font-semibold tracking-wide text-muted">HISTÓRICO DE VERSÕES</div>
                 {pitchVersions.length === 0 && (
-                  <div className="border-[1.5px] border-dashed border-[#D8CFB8] p-4 text-[12px] text-[#9A927E]">
+                  <div className="border-[1.5px] border-dashed border-[#D8CFB8] p-4 text-[12px] text-muted">
                     Nenhuma versão salva ainda.
                   </div>
                 )}
@@ -571,7 +577,7 @@ export default function EditorClient({
                           className="flex w-full items-center justify-between px-3 py-2 text-left"
                         >
                           <span className="font-display text-sm font-bold text-ink">v{v.version}</span>
-                          <span className="text-[11px] text-[#8F8878]">
+                          <span className="text-[11px] text-muted">
                             {new Date(v.createdAt).toLocaleDateString('pt-BR')}
                           </span>
                         </button>
@@ -589,7 +595,7 @@ export default function EditorClient({
           )}
 
           {mode === 'FULL' && !activePage && (
-            <div className="pl-[18px] text-sm text-[#9A927E]">
+            <div className="pl-[18px] text-sm text-muted">
               Esta edição ainda não tem páginas. Use "+ Página" na lateral pra começar.
             </div>
           )}
@@ -600,7 +606,7 @@ export default function EditorClient({
               if (b.type === 'DIALOGO') {
                 return (
                   <div key={b.id} className="flex flex-col gap-1 border-l-[3px] border-[#D8CFB8] py-1 pl-[18px]">
-                    <div className="text-[10.5px] font-bold tracking-wider text-[#8F8878]">DIÁLOGO</div>
+                    <div className="text-[10.5px] font-bold tracking-wider text-muted">DIÁLOGO</div>
                     <input
                       ref={(el) => {
                         fieldRefs.current[b.id + '-char'] = el;
@@ -611,7 +617,7 @@ export default function EditorClient({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          if (e.currentTarget.value.trim() === '') skipEmptyDialogo(b.id);
+                          if (e.currentTarget.value.trim() === '') skipEmptyBlock(b.id);
                           else setFocusId(b.id);
                         }
                       }}
@@ -662,7 +668,6 @@ export default function EditorClient({
                     }}
                     className="w-full resize-y bg-transparent font-script text-sm leading-relaxed text-ink outline-none"
                     style={{
-                      fontStyle: b.type === 'QUADRO' ? 'italic' : 'normal',
                       fontWeight: isOnomatopeia ? 700 : 400,
                       textTransform: isOnomatopeia ? 'uppercase' : 'none'
                     }}
@@ -672,14 +677,14 @@ export default function EditorClient({
             })}
 
           {mode === 'FULL' && activePage && (
-            <div className="pl-[18px] text-[11.5px] text-[#9A927E]">
+            <div className="pl-[18px] text-[11.5px] text-muted">
               Enter alterna quadro → personagem → fala → onomatopeia. Enter vazio pula direto pro próximo quadro. Shift+Enter
               quebra linha.
             </div>
           )}
 
           {mode === 'PLOT' && pagesInEdition.length === 0 && (
-            <div className="text-sm text-[#9A927E]">Esta edição ainda não tem páginas. Use "+ Página" na lateral pra começar.</div>
+            <div className="text-sm text-muted">Esta edição ainda não tem páginas. Use "+ Página" na lateral pra começar.</div>
           )}
 
           {mode === 'PLOT' &&
@@ -705,12 +710,12 @@ export default function EditorClient({
               </div>
             ))}
           {mode === 'PLOT' && (
-            <div className="text-[11.5px] text-[#9A927E]">Enter pula para a próxima página. Plot é página a página.</div>
+            <div className="text-[11.5px] text-muted">Enter pula para a próxima página. Plot é página a página.</div>
           )}
 
           {mode === 'OUTLINE' && (
             <div className="mb-2 flex items-center gap-3">
-              <label className="text-[11px] font-semibold tracking-wide text-[#9A927E]">QUANTIDADE DE EDIÇÕES</label>
+              <label className="text-[11px] font-semibold tracking-wide text-muted">QUANTIDADE DE EDIÇÕES</label>
               <input
                 type="number"
                 min={1}
@@ -764,7 +769,7 @@ export default function EditorClient({
               </div>
             ))}
           {mode === 'OUTLINE' && (
-            <div className="pl-[18px] text-[11.5px] text-[#9A927E]">
+            <div className="pl-[18px] text-[11.5px] text-muted">
               Enter avança pra próxima edição (cria uma nova se for a última). Shift+Enter quebra linha.
             </div>
           )}

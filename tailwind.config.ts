@@ -8,6 +8,7 @@ const config: Config = {
         paper: '#F2EDE1',
         'paper-line': '#D8CFB8',
         ink: '#201E19',
+        muted: '#6B6454',
         sidebar: '#1E1C18',
         accent: {
           blue: '#2B4C7E',

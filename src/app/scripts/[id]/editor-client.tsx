@@ -1,8 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LogoutButton from '@/components/logout-button';
+import { linkFields, linkOf, type ReferenceItem, type ReferenceLink } from '@/lib/references';
+import { ReferenceLightbox, ReferenceStrip, ReferencesGallery, uploadReference, type PageOption } from './references';
+
+type Mode = 'FULL' | 'PLOT' | 'OUTLINE' | 'PITCH' | 'REFS';
 
 type BlockType = 'QUADRO' | 'DIALOGO' | 'ONOMATOPEIA';
 
@@ -51,6 +55,7 @@ interface ScriptData {
   pitchDraft: string;
   pitchVersions: PitchVersion[];
   editions: EditionData[];
+  references: ReferenceItem[];
 }
 
 // Quadros são numerados pela posição na página — recalculado a cada inserção/remoção
@@ -109,7 +114,7 @@ export default function EditorClient({
   initialMode
 }: {
   initialScript: ScriptData;
-  initialMode?: 'FULL' | 'PLOT' | 'OUTLINE' | 'PITCH';
+  initialMode?: Mode;
 }) {
   const isSeries = initialScript.projectType === 'SERIES';
   const initialEditions = initialScript.editions.length
@@ -122,7 +127,7 @@ export default function EditorClient({
   const [pages, setPages] = useState<PageData[]>(
     initialScript.pages.length ? initialScript.pages : [makePage(1, initialEditions[0].id)]
   );
-  const [mode, setMode] = useState<'FULL' | 'PLOT' | 'OUTLINE' | 'PITCH'>(initialMode || 'FULL');
+  const [mode, setMode] = useState<Mode>(initialMode || 'FULL');
   const [selectedPage, setSelectedPage] = useState(0);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -134,6 +139,14 @@ export default function EditorClient({
   const [pitchSaving, setPitchSaving] = useState(false);
   const [savingVersion, setSavingVersion] = useState(false);
   const [pitchError, setPitchError] = useState('');
+
+  const [refs, setRefs] = useState<ReferenceItem[]>(initialScript.references);
+  const [uploading, setUploading] = useState(0);
+  const [refError, setRefError] = useState('');
+  const [lightbox, setLightbox] = useState<{ list: ReferenceItem[]; index: number } | null>(null);
+  const [openCharacter, setOpenCharacter] = useState<string | null>(null);
+  // Nome do personagem quando o campo ganhou foco — pra levar as referências junto se ele for renomeado.
+  const nameAtFocus = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (focusId && fieldRefs.current[focusId]) {
@@ -236,6 +249,83 @@ export default function EditorClient({
   );
   const activePage = pagesInEdition[selectedPage];
   const activeEdition = editions.find((e) => e.id === activeEditionId);
+
+  const characterNames = useMemo(
+    () => Array.from(new Set(characters.map((c) => c.name.trim()).filter(Boolean))),
+    [characters]
+  );
+  const pageOptions = useMemo<PageOption[]>(() => {
+    const numberOf = new Map(editions.map((e) => [e.id, e.number]));
+    return pages
+      .map((p) => ({ editionNumber: numberOf.get(p.editionId) ?? 1, pageNumber: p.number }))
+      .sort((a, b) => a.editionNumber - b.editionNumber || a.pageNumber - b.pageNumber);
+  }, [pages, editions]);
+
+  const activePageRefs = useMemo(() => {
+    if (!activePage || !activeEdition) return [];
+    return refs.filter((r) => {
+      const link = linkOf(r);
+      return link.kind === 'page' && link.editionNumber === activeEdition.number && link.pageNumber === activePage.number;
+    });
+  }, [refs, activePage, activeEdition]);
+
+  const uploadFiles = useCallback(
+    async (files: File[], link: ReferenceLink) => {
+      setRefError('');
+      setUploading((n) => n + files.length);
+      // Uma por vez: cada imagem é compactada no navegador antes de subir.
+      for (const file of files) {
+        try {
+          const created = await uploadReference(initialScript.id, file, link);
+          setRefs((prev) => [...prev, created]);
+        } catch (err) {
+          setRefError(err instanceof Error ? err.message : 'Não foi possível enviar a imagem.');
+        } finally {
+          setUploading((n) => n - 1);
+        }
+      }
+    },
+    [initialScript.id]
+  );
+
+  async function updateRef(id: string, patch: { caption?: string; link?: ReferenceLink }) {
+    const body = {
+      ...(patch.caption !== undefined ? { caption: patch.caption.trim() } : {}),
+      ...(patch.link ? linkFields(patch.link) : {})
+    };
+    setRefs((prev) => prev.map((r) => (r.id === id ? { ...r, ...body } : r)));
+    const res = await fetch(`/api/references/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) setRefError('Não foi possível salvar a alteração da referência.');
+  }
+
+  async function deleteRef(ref: ReferenceItem) {
+    if (!window.confirm(`Excluir esta referência${ref.caption ? ` ("${ref.caption}")` : ''}?`)) return;
+    const res = await fetch(`/api/references/${ref.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      setRefError('Não foi possível excluir a referência.');
+      return;
+    }
+    setRefs((prev) => prev.filter((r) => r.id !== ref.id));
+  }
+
+  // As referências do personagem são ligadas pelo nome, então acompanham a troca de nome.
+  async function renameCharacterRefs(from: string, to: string) {
+    const oldName = from.trim();
+    const newName = to.trim();
+    if (!oldName || !newName || oldName === newName) return;
+    if (!refs.some((r) => r.characterName === oldName)) return;
+    setRefs((prev) => prev.map((r) => (r.characterName === oldName ? { ...r, characterName: newName } : r)));
+    setOpenCharacter((open) => (open === oldName ? newName : open));
+    await fetch(`/api/scripts/${initialScript.id}/references`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ renameCharacter: { from: oldName, to: newName } })
+    });
+  }
 
   function selectEdition(editionId: string) {
     setActiveEditionId(editionId);
@@ -478,7 +568,15 @@ export default function EditorClient({
               {mode === 'FULL' ? (activePage ? `Página ${activePage.number}` : 'Edição vazia') : title}
             </div>
             <div className="text-xs text-muted">
-              {mode === 'FULL' ? 'Roteiro' : mode === 'PLOT' ? 'Plot — página a página' : mode === 'OUTLINE' ? 'Esboço da trama' : 'Proposta'}
+              {mode === 'FULL'
+                ? 'Roteiro'
+                : mode === 'PLOT'
+                  ? 'Plot — página a página'
+                  : mode === 'OUTLINE'
+                    ? 'Esboço da trama'
+                    : mode === 'REFS'
+                      ? 'Referências visuais'
+                      : 'Proposta'}
             </div>
           </div>
 
@@ -516,7 +614,15 @@ export default function EditorClient({
                   PROPOSTA
                 </button>
               )}
+              <button
+                onClick={() => setMode('REFS')}
+                className="border-l-[1.5px] border-ink px-4 py-2 text-[12.5px] font-semibold tracking-wide"
+                style={{ background: mode === 'REFS' ? '#201E19' : '#FBF8F1', color: mode === 'REFS' ? '#F2EDE1' : '#201E19' }}
+              >
+                REFERÊNCIAS
+              </button>
             </div>
+            {mode !== 'REFS' && (
             <a
               href={
                 mode === 'PITCH'
@@ -530,10 +636,26 @@ export default function EditorClient({
             >
               Exportar PDF
             </a>
+            )}
           </div>
         </div>
 
         <div className="mx-auto flex w-full max-w-[760px] flex-1 flex-col gap-5 overflow-y-auto px-12 pb-24 pt-10">
+          {mode === 'REFS' && (
+            <ReferencesGallery
+              refs={refs}
+              characterNames={characterNames}
+              pageOptions={pageOptions}
+              isSeries={isSeries}
+              uploading={uploading}
+              error={refError}
+              onUpload={uploadFiles}
+              onUpdate={updateRef}
+              onDelete={deleteRef}
+              onOpen={(list, index) => setLightbox({ list, index })}
+            />
+          )}
+
           {mode === 'PITCH' && (
             <div className="flex flex-col gap-6">
               <div>
@@ -547,6 +669,10 @@ export default function EditorClient({
                         }}
                         value={c.name}
                         placeholder="NOME DO PERSONAGEM"
+                        onFocus={() => {
+                          nameAtFocus.current[c.id] = c.name;
+                        }}
+                        onBlur={(e) => renameCharacterRefs(nameAtFocus.current[c.id] ?? '', e.target.value)}
                         onChange={(e) => updateCharacterField(c.id, 'name', e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
@@ -857,13 +983,57 @@ export default function EditorClient({
             empty="Sem esboço para esta edição."
           />
         )}
+        {mode === 'FULL' && activePage && activeEdition && (
+          <div className="mb-5 border-[1.5px] border-[#4A453A] bg-[#26231D] p-3.5">
+            <div className="mb-2 text-[10px] font-bold tracking-wider text-[#9A927E]">
+              REFERÊNCIAS · PÁGINA {activePage.number}
+            </div>
+            <ReferenceStrip
+              refs={activePageRefs}
+              onOpen={(index) => setLightbox({ list: activePageRefs, index })}
+              onAdd={(files) =>
+                uploadFiles(files, { kind: 'page', editionNumber: activeEdition.number, pageNumber: activePage.number })
+              }
+              empty="Nenhuma imagem para esta página."
+            />
+          </div>
+        )}
         {mode === 'OUTLINE' && <ReferenceCard label="PROPOSTA" text={pitchText} empty="Proposta ainda não escrita." />}
         <div className="mb-4 font-display text-sm font-bold tracking-wide">PERSONAGENS</div>
-        {characters.map((c) => (
-          <div key={c.id} className="border-b border-[#3A362E] py-2.5 text-[13px] text-[#E5DFD0]">
-            {c.name}
+        {characters.map((c) => {
+          const name = c.name.trim();
+          const charRefs = name ? refs.filter((r) => r.characterName === name) : [];
+          const isOpen = !!name && openCharacter === name;
+          return (
+            <div key={c.id} className="border-b border-[#3A362E] py-2.5 text-[13px] text-[#E5DFD0]">
+              <button
+                onClick={() => name && setOpenCharacter(isOpen ? null : name)}
+                disabled={!name}
+                className="flex w-full items-center justify-between text-left"
+                title={name ? 'Ver referências do personagem' : undefined}
+              >
+                <span>{c.name}</span>
+                {charRefs.length > 0 && <span className="text-[11px] text-[#9A927E]">{charRefs.length} img</span>}
+              </button>
+              {isOpen && (
+                <div className="mt-2">
+                  <ReferenceStrip
+                    refs={charRefs}
+                    onOpen={(index) => setLightbox({ list: charRefs, index })}
+                    onAdd={(files) => uploadFiles(files, { kind: 'character', name })}
+                    empty="Nenhuma imagem deste personagem."
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {uploading > 0 && (
+          <div className="mt-3 text-[11px] text-[#9A927E]">
+            Enviando {uploading} {uploading === 1 ? 'imagem' : 'imagens'}…
           </div>
-        ))}
+        )}
+        {refError && mode !== 'REFS' && <div className="mt-3 text-[11px] text-[#E08A7E]">{refError}</div>}
         <button
           onClick={addCharacter}
           className="mt-4 w-full border border-dashed border-[#4A453A] py-2 text-center text-xs font-semibold text-[#B7AF9A]"
@@ -871,6 +1041,16 @@ export default function EditorClient({
           + Personagem
         </button>
       </div>
+
+      {lightbox && (
+        <ReferenceLightbox
+          list={lightbox.list}
+          index={lightbox.index}
+          isSeries={isSeries}
+          onNavigate={(index) => setLightbox((lb) => (lb ? { ...lb, index } : lb))}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 }

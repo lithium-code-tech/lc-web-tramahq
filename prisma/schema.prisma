@@ -32,6 +32,7 @@ model Script {
   pitchDraft  String      @default("") @db.Text
   pitches     Pitch[]
   editions    Edition[]
+  refs        Reference[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
@@ -95,4 +96,27 @@ model Character {
   script      Script  @relation(fields: [scriptId], references: [id], onDelete: Cascade)
   name        String
   description String? @db.Text
+}
+
+// Imagem de referência (já compactada no navegador). Páginas e personagens são
+// recriados a cada autosave, então a ligação é por chave estável e não por id:
+// sem nada = referência geral do projeto; characterName = do personagem;
+// editionNumber + pageNumber = da página.
+model Reference {
+  id            String   @id @default(cuid())
+  scriptId      String
+  script        Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  caption       String   @default("")
+  characterName String?
+  editionNumber Int?
+  pageNumber    Int?
+  mimeType      String
+  width         Int
+  height        Int
+  data          Bytes
+  thumbMimeType String
+  thumb         Bytes
+  createdAt     DateTime @default(now())
+
+  @@index([scriptId])
 }

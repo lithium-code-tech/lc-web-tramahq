@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { REFERENCE_SELECT } from '@/lib/references';
 import EditorClient from './editor-client';
 
 export default async function ScriptPage({
@@ -20,7 +21,9 @@ export default async function ScriptPage({
       pages: { orderBy: { number: 'asc' }, include: { blocks: { orderBy: { order: 'asc' } } } },
       characters: { orderBy: { name: 'asc' } },
       pitches: { orderBy: { version: 'desc' } },
-      editions: { orderBy: { number: 'asc' } }
+      editions: { orderBy: { number: 'asc' } },
+      // Só os metadados: as imagens vêm de /api/references/[refId] sob demanda.
+      refs: { orderBy: { createdAt: 'asc' }, select: REFERENCE_SELECT }
     }
   });
 
@@ -33,7 +36,9 @@ export default async function ScriptPage({
         ? 'OUTLINE'
         : searchParams.mode === 'pitch'
           ? 'PITCH'
-          : 'FULL';
+          : searchParams.mode === 'refs'
+            ? 'REFS'
+            : 'FULL';
 
   // Graphic Novel é single issue: só Roteiro e Plot existem.
   const initialMode =
@@ -71,7 +76,8 @@ export default async function ScriptPage({
         })),
         editions: script.editions.length
           ? script.editions.map((e) => ({ id: e.id, number: e.number, subtitle: e.subtitle || '', text: e.text }))
-          : [{ id: 'new-1', number: 1, subtitle: '', text: '' }]
+          : [{ id: 'new-1', number: 1, subtitle: '', text: '' }],
+        references: script.refs.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))
       }}
     />
   );

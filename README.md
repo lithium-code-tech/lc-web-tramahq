@@ -17,6 +17,7 @@ Next.js 14 (App Router) · Prisma · PostgreSQL · NextAuth (credentials) · Tai
   - `QUADRO` usa `number` (número do quadro na página) + `text` (descrição)
   - `ONOMATOPEIA` usa só `text`
 - `Script` → várias `Character` (elenco)
+- `Script` → várias `Reference` (imagens de referência, ver abaixo)
 
 ## Rodando localmente
 
@@ -57,6 +58,21 @@ Um bloco numerado por página. Enter avança para o número da página seguinte;
 última página, Enter cria uma página nova automaticamente (sincronizada com o Full
 Script).
 
+## Referências visuais
+
+Aba **Referências**: galeria do projeto. Arraste imagens, cole com Ctrl+V ou escolha
+arquivos. Cada imagem pode ter legenda e ficar ligada a:
+
+- **Projeto** (moodboard geral: estilo, paleta, ambientação)
+- **Personagem**: aparece ao clicar no nome dele na coluna da direita
+- **Página**: aparece na coluna da direita enquanto você escreve o Roteiro daquela página
+
+As imagens são compactadas no navegador antes do upload (lado maior até 1600 px, WebP,
+mais uma miniatura de 320 px) e guardadas no Postgres (`Reference.data` / `Reference.thumb`).
+Como páginas e personagens são recriados a cada autosave, a ligação é pelo **nome do
+personagem** ou por **edição + número da página**, não por id. Renomear um personagem na
+Proposta leva as referências dele junto.
+
 ## Export em PDF
 
 Botão "Exportar PDF" no editor gera um PDF em Courier, formato de roteiro
@@ -68,7 +84,6 @@ tanto no modo Full Script quanto no Plot (`?mode=full` ou `?mode=plot`).
 
 - Compartilhamento de link somente-leitura para o desenhista comentar por quadro
   (mais barato que colaboração em tempo real)
-- Referência visual por quadro (upload de thumbnail/rascunho)
 - Ajustar o save de página inteira (`PATCH /api/scripts/[id]`) para algo mais
   granular se o roteiro crescer muito (hoje ele substitui páginas e personagens
   inteiros a cada autosave — simples, mas não é o mais eficiente em escala)
